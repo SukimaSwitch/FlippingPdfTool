@@ -692,11 +692,18 @@ def add_links_to_pdf(doc: fitz.Document, matches: Sequence[FigureMatch]) -> int:
     link_count = 0
     for match in matches:
         page = doc[match.page_index]
-        rect = bbox_to_page_rect(page, match.figure_bbox)
-        if rect.get_area() <= 0:
-            continue
-        page.insert_link({"from": rect, "kind": fitz.LINK_URI, "uri": match.url})
-        link_count += 1
+        rects = [bbox_to_page_rect(page, match.figure_bbox)]
+        if match.description_bbox:
+            rects.append(bbox_to_page_rect(page, match.description_bbox))
+
+        seen = set()
+        for rect in rects:
+            signature = tuple(round(value, 2) for value in (rect.x0, rect.y0, rect.x1, rect.y1))
+            if rect.get_area() <= 0 or signature in seen:
+                continue
+            page.insert_link({"from": rect, "kind": fitz.LINK_URI, "uri": match.url})
+            link_count += 1
+            seen.add(signature)
     return link_count
 
 

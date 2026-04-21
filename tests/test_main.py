@@ -1,6 +1,10 @@
 import unittest
+from tempfile import NamedTemporaryFile
+
+import fitz
 
 from src.main import CandidateBlock, build_url_template, extract_sku, match_figures_to_descriptions, resolve_sku_text
+from src.main import FigureMatch, add_links_to_pdf
 
 
 class MainPipelineTests(unittest.TestCase):
@@ -118,6 +122,49 @@ class MainPipelineTests(unittest.TestCase):
         )
 
         self.assertEqual([match.sku for match in matches], ["819496", "818994"])
+
+    def test_add_links_to_pdf_includes_figure_and_description(self) -> None:
+        doc = fitz.open()
+        page = doc.new_page(width=600, height=800)
+        page.insert_text((60, 60), "Sample catalog page")
+
+        links_added = add_links_to_pdf(
+            doc,
+            [
+                FigureMatch(
+                    page_index=0,
+                    figure_bbox={"Left": 0.10, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+                    description_text="Snowflake Tray Item 55281 only $24.99",
+                    description_bbox={"Left": 0.09, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+                    sku="55281",
+                    url="https://example.com/products/55281",
+                    score=2.1,
+                )
+            ],
+        )
+
+        with NamedTemporaryFile(suffix=".pdf") as temp_file:
+            doc.save(temp_file.name)
+            doc.close()
+            reopened = fitz.open(temp_file.name)
+            links = list(reopened[0].get_links())
+
+            self.assertEqual(links_added, 2)
+            self.assertEqual(len(links), 2)
+            self.assertEqual({link["uri"] for link in links}, {"https://example.com/products/55281"})
+
+            link_rects = {
+                tuple(round(value, 2) for value in (link["from"].x0, link["from"].y0, link["from"].x1, link["from"].y1))
+                for link in links
+            }
+            self.assertEqual(
+                link_rects,
+                {
+                    (60.0, 120.0, 180.0, 264.0),
+                    (54.0, 288.0, 222.0, 328.0),
+                },
+            )
+            reopened.close()
 
 
 if __name__ == "__main__":
