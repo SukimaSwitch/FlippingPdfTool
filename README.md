@@ -1,13 +1,20 @@
-# PDF Editor
+# FlippingPdfTool
 
 A Python CLI application that renders catalog PDFs to JPG, identifies product figures and nearby descriptions, extracts SKUs, and adds product links back onto the figure regions in the PDF.
 
 ## Installation
 
-1. Clone the repository.
-2. Install dependencies with `pip install -r requirements.txt`.
-3. Configure AWS credentials with permission to call Amazon Textract.
-4. Optionally set `AWS_REGION`, `TEXTRACT_ADAPTER_ID`, and `TEXTRACT_ADAPTER_VERSION`.
+1. Clone the repository:
+	```bash
+	git clone https://github.com/SukimaSwitch/FlippingPdfTool.git
+	```
+2. Navigate to the project directory:
+	```bash
+	cd FlippingPdfTool
+	```
+3. Install dependencies with `pip install -r requirements.txt`.
+4. Configure AWS credentials with permission to call Amazon Textract.
+5. Optionally set `AWS_REGION`, `TEXTRACT_ADAPTER_ID`, and `TEXTRACT_ADAPTER_VERSION`.
 
 ## Usage
 

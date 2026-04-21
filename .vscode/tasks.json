@@ -2,13 +2,29 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Run PDF Editor",
+			"label": "Run FlippingPdfTool",
 			"type": "shell",
 			"command": "python",
 			"args": [
 				"src/main.py"
 			],
 			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verify FlippingPdfTool tests",
+			"type": "shell",
+			"command": "/home/xzhang/project/FlippingPdfTool/.venv/bin/python",
+			"args": [
+				"-m",
+				"unittest",
+				"discover",
+				"-s",
+				"tests",
+				"-v"
+			],
+			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
 		}
