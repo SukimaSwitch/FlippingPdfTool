@@ -1,0 +1,6 @@
+requests
+pymupdf
+pillow
+opencv-python
+numpy
+boto3
