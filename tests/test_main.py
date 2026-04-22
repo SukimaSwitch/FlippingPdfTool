@@ -3,8 +3,8 @@ from tempfile import NamedTemporaryFile
 
 import fitz
 
-from src.main import CandidateBlock, build_url_template, extract_sku, match_figures_to_descriptions, resolve_sku_text
-from src.main import FigureMatch, add_links_to_pdf
+from src.main import CandidateBlock, build_url_template, extract_sku, match_figures_to_descriptions, resolve_page_indexes
+from src.main import FigureMatch, add_links_to_pdf, build_text_candidates, match_to_payload, payload_to_match, resolve_sku_text
 
 
 class MainPipelineTests(unittest.TestCase):
@@ -122,6 +122,50 @@ class MainPipelineTests(unittest.TestCase):
         )
 
         self.assertEqual([match.sku for match in matches], ["819496", "818994"])
+
+    def test_resolve_page_indexes_applies_range_and_limit(self) -> None:
+        self.assertEqual(resolve_page_indexes(12, 3, 8, 4), [2, 3, 4, 5])
+
+    def test_payload_to_match_restores_linkable_match(self) -> None:
+        match = FigureMatch(
+            page_index=0,
+            figure_bbox={"Left": 0.10, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+            description_text="Snowflake Tray Item 55281 only $24.99",
+            description_bbox={"Left": 0.09, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+            sku="55281",
+            url="https://example.com/products/55281",
+            score=2.1,
+            sku_source="pdf",
+            native_text="Snowflake Tray Item 55281 only $24.99",
+        )
+
+        restored = payload_to_match(0, match_to_payload(match))
+
+        self.assertEqual(restored.page_index, 0)
+        self.assertEqual(restored.sku, "55281")
+        self.assertEqual(restored.url, "https://example.com/products/55281")
+        self.assertEqual(restored.sku_source, "pdf")
+        self.assertEqual(restored.native_text, "Snowflake Tray Item 55281 only $24.99")
+
+    def test_build_text_candidates_uses_single_page_textract_lines(self) -> None:
+        response = {
+            "Blocks": [
+                {
+                    "Id": "line-1",
+                    "BlockType": "LINE",
+                    "Text": "Patriotic wreath 610079 $29.99",
+                    "Geometry": {
+                        "BoundingBox": {"Left": 0.48, "Top": 0.67, "Width": 0.20, "Height": 0.03}
+                    },
+                }
+            ]
+        }
+
+        figures, text_candidates = build_text_candidates(response, page_number=4)
+
+        self.assertEqual(figures, [])
+        self.assertEqual(len(text_candidates), 1)
+        self.assertEqual(text_candidates[0].text, "Patriotic wreath 610079 $29.99")
 
     def test_add_links_to_pdf_includes_figure_and_description(self) -> None:
         doc = fitz.open()
