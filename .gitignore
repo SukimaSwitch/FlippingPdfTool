@@ -22,3 +22,6 @@ coverage.xml
 .hypothesis
 extracted_images/
 figure_info/
+.github/
+.specify/
+.vscode/
