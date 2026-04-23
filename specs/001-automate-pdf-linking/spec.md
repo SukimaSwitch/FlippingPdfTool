@@ -99,6 +99,8 @@ As a support or operations user, I want failures and partial results to be recor
 - **SC-001**: For successful jobs, 100% of processed PDFs that are published produce a usable flipbook URL included in the stakeholder notification.
 - **SC-002**: 100% of failed jobs generate a notification and a recorded failure reason identifying the stage where the workflow stopped.
 - **SC-003**: 100% of successful job notifications include the source filename, final job result, and the published flipbook URL.
+- **SC-004**: The workflow successfully accepts and completes processing for uploaded catalog PDFs larger than 70 MB and exceeding 80 pages when the input file is otherwise valid.
+- **SC-005**: The workflow does not fail solely because processing exceeds a predefined execution-time limit; long-running jobs remain eligible to continue until they complete or encounter a functional error.
 
 ## Assumptions
 
@@ -106,6 +108,6 @@ As a support or operations user, I want failures and partial results to be recor
 - The existing catalog-linking logic remains the authoritative basis for page rendering, content extraction, SKU detection, and link placement behavior.
 - Uploaded files in scope are catalog PDFs only; non-PDF assets are out of scope for this feature.
 - The product catalog source supports SKU-based search and returns product URL information when a matching product exists.
-- Catalog PDFs in scope may exceed 70 MB and can require up to roughly one hour to complete processing under expected operating conditions.
+- Catalog PDFs in scope may exceed 70 MB and 80 pages, and long-running processing is acceptable for valid jobs.
 - The configured email group, publication account, and service credentials are available before processing begins.
 - This feature covers automated processing of one uploaded PDF per job and does not include a manual review or correction interface.
