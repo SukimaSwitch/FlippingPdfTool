@@ -5,6 +5,12 @@
 **Status**: Draft  
 **Input**: User description: "Automate the workflow that turns an uploaded catalog PDF into a linked output PDF, publishes it as a flipbook, notifies stakeholders, and records job outcomes."
 
+## Clarifications
+
+### Session 2026-04-23
+
+- Q: How should the workflow handle PDFs uploaded outside the known site-specific S3 prefixes? -> A: Reject them during ingest/routing and mark the job failed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Produce a linked catalog automatically (Priority: P1)
@@ -54,6 +60,7 @@ As a support or operations user, I want failures and partial results to be recor
 ### Edge Cases
 
 - A source file is not a valid PDF or cannot be opened for page-by-page processing.
+- A source file is uploaded outside the supported site prefixes and therefore cannot be routed to a valid domain or Magento store code.
 - A page contains text or images but no SKU that can be matched to a product URL.
 - A SKU is detected but no product URL is returned from the product catalog service.
 - The same SKU appears multiple times on a page and each matching image-description pair must receive the correct link.
@@ -66,12 +73,17 @@ As a support or operations user, I want failures and partial results to be recor
 ### Functional Requirements
 
 - **FR-001**: The system MUST detect when a PDF file is added to the configured import location and start a single processing job for that file.
+- **FR-001a**: The configured import location MUST be the `cmg-catalog-book/input` bucket with site-specific prefixes selected manually at upload time: `currentcatalog/`, `colorfulimages/`, and `lillianvernon/`.
 - **FR-002**: The system MUST retrieve the uploaded PDF from storage and process it using the existing page-by-page catalog-linking workflow as the baseline business logic.
+- **FR-002a**: The system MUST derive the site configuration from the source object's S3 prefix and use that configuration for output routing, product URL domain selection, and Magento store-code selection.
 - **FR-003**: The system MUST process the PDF one page at a time and evaluate every page for product figures and related descriptive text.
 - **FR-004**: The system MUST derive candidate product identifiers from page content and use those identifiers to look up a destination product URL from the configured product catalog source.
+- **FR-004a**: The site configuration mappings MUST be: `currentcatalog/` -> domain `https://www.currentcatalog.com`, store code `currentcatalog`; `colorfulimages/` -> domain `https://www.colorfulimages.com`, store code `colorfulimages`; `lillianvernon/` -> domain `https://www.lillianvernon.com`, store code `lillianvernon`.
+- **FR-004b**: Product lookup requests to Magento MUST use the site-specific store code in the route `GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]=<SKU>&searchCriteria[filterGroups][0][filters][0][conditionType]=like`.
 - **FR-005**: The system MUST add hyperlinks to the output PDF for each matched product image and its corresponding product description when a product URL is resolved.
 - **FR-006**: The system MUST preserve pages that have no valid product match without corrupting the remainder of the output PDF.
 - **FR-007**: The system MUST write the processed PDF to the configured output location using the same filename as the source PDF.
+- **FR-007a**: The configured output location MUST be the `cmg-catalog-book/output` bucket, and processed PDFs MUST be written to the site-matching prefix that corresponds to the input prefix.
 - **FR-008**: The system MUST submit the processed PDF to the configured flipbook publishing service after the output PDF is created.
 - **FR-009**: The system MUST capture the resulting flipbook URL when publication succeeds and associate it with the processing job result.
 - **FR-010**: The system MUST send a success notification to the configured email group after a fully successful run, including at minimum the source filename, overall processing result, and flipbook URL.
@@ -79,10 +91,12 @@ As a support or operations user, I want failures and partial results to be recor
 - **FR-012**: The system MUST log major workflow stages, page-level progress, external service call outcomes, and error conditions for each processing job.
 - **FR-013**: The system MUST retain enough job metadata to distinguish source file ingestion, PDF processing, output storage, publication, notification, and final job status.
 - **FR-014**: The system MUST ensure that failure in a downstream step does not erase or invalidate artifacts that were already created successfully earlier in the same job.
+- **FR-015**: The system MUST reject any uploaded PDF whose source key does not match one of the supported site prefixes and mark the job as failed during ingest/routing before PDF processing begins.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Source PDF**: An uploaded catalog document identified by filename, storage location, upload time, and processing eligibility.
+- **Site Configuration**: The routing metadata derived from the source S3 prefix, including input prefix, output prefix, product URL domain, and Magento store code.
 - **Processing Job**: The end-to-end workflow instance for one uploaded PDF, including lifecycle state, timestamps, stage outcomes, and references to generated artifacts.
 - **Page Result**: The per-page record of extracted content, identified products, matched link targets, and page-level success or failure notes.
 - **Product Match**: The association between a detected product identifier, its resolved product URL, the image region to link, and the description region to link.
@@ -102,6 +116,8 @@ As a support or operations user, I want failures and partial results to be recor
 ## Assumptions
 
 - The import and output locations are preconfigured and accessible to the automation workflow.
+- Operators manually upload each PDF into the site-appropriate prefix under `cmg-catalog-book/input`.
+- Only the supported site prefixes `currentcatalog/`, `colorfulimages/`, and `lillianvernon/` are in scope for automated processing.
 - The existing catalog-linking logic remains the authoritative basis for page rendering, content extraction, SKU detection, and link placement behavior.
 - Uploaded files in scope are catalog PDFs only; non-PDF assets are out of scope for this feature.
 - The product catalog source already contains product URLs for the majority of SKUs expected in uploaded catalogs.

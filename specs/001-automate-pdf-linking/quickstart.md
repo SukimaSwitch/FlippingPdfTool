@@ -2,13 +2,13 @@
 
 ## Goal
 
-Validate the planned workflow that automates PDF linking, publication, and notification around the existing `src/main.py` pipeline.
+Validate the planned workflow that automates PDF linking, site-aware routing, publication, and notification around the existing `src/main.py` pipeline.
 
 ## Prerequisites
 
 - Python environment installed for local tests.
-- AWS credentials with access to S3, Textract, orchestration services, and the chosen notification mechanism.
-- Test credentials for the product catalog lookup and flipbook service.
+- AWS credentials with access to S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and the chosen notification mechanism.
+- Test credentials for the Magento product catalog lookup and flipbook service.
 - A sample catalog PDF larger than 70 MB with more than 80 pages.
 
 ## 1. Verify the current local pipeline baseline
@@ -31,7 +31,23 @@ Expected result:
 - Per-page summaries and Textract artifacts are created.
 - Link annotations are visible after saving and reopening the output PDF.
 
-## 2. Containerize and invoke the worker entrypoint
+## 2. Validate ingest-routing decisions before the worker runs
+
+Use representative S3 event payloads or unit tests for the routing helper.
+
+Acceptance cases:
+
+- `input/currentcatalog/spring-2026-catalog.pdf` resolves to domain `https://www.currentcatalog.com`, store code `currentcatalog`, and output key `output/currentcatalog/spring-2026-catalog.pdf`.
+- `input/colorfulimages/spring-2026-catalog.pdf` resolves to domain `https://www.colorfulimages.com`, store code `colorfulimages`, and output key `output/colorfulimages/spring-2026-catalog.pdf`.
+- `input/lillianvernon/spring-2026-catalog.pdf` resolves to domain `https://www.lillianvernon.com`, store code `lillianvernon`, and output key `output/lillianvernon/spring-2026-catalog.pdf`.
+- `input/unknown/spring-2026-catalog.pdf` is rejected during ingest-routing and does not invoke PDF processing.
+
+Expected result:
+
+- Every supported prefix produces a deterministic Site Configuration.
+- Unknown prefixes create a failed job record with a routing-stage error and no worker run ID.
+
+## 3. Containerize and invoke the worker entrypoint
 
 Build the worker image that wraps the current pipeline plus cloud adapters.
 
@@ -39,35 +55,40 @@ Build the worker image that wraps the current pipeline plus cloud adapters.
 docker build -t flipping-pdf-worker .
 ```
 
-Run the worker locally with environment variables that mimic a cloud job payload.
+Run the worker locally with environment variables or a JSON payload that mimic a routed cloud job.
 
 ```bash
 docker run --rm \
   -e JOB_ID=test-job-001 \
-  -e SOURCE_BUCKET=catalog-input-bucket \
-  -e SOURCE_KEY=imports/sample-catalog.pdf \
-  -e OUTPUT_BUCKET=catalog-output-bucket \
-  -e OUTPUT_KEY=processed/sample-catalog.pdf \
+  -e SOURCE_BUCKET=cmg-catalog-book \
+  -e SOURCE_KEY=input/currentcatalog/sample-catalog.pdf \
+  -e OUTPUT_BUCKET=cmg-catalog-book \
+  -e OUTPUT_KEY=output/currentcatalog/sample-catalog.pdf \
+  -e SITE_PREFIX=currentcatalog \
+  -e PUBLIC_DOMAIN=https://www.currentcatalog.com \
+  -e MAGENTO_STORE_CODE=currentcatalog \
   flipping-pdf-worker
 ```
 
 Expected result:
 
 - The worker downloads the source PDF from S3.
+- The worker performs Magento lookups with the configured store code.
 - The worker uploads the linked PDF and diagnostic artifacts to S3.
 - The worker emits a structured processing result payload.
 
-## 3. Exercise the orchestration flow
+## 4. Exercise the orchestration flow
 
-Trigger the workflow with a test PDF upload or a representative event payload.
+Trigger the workflow with a test PDF upload or a representative S3 event payload.
 
 Expected result:
 
 - A Processing Job record is created.
-- The worker runs asynchronously without depending on Lambda runtime duration.
-- Job state advances through ingest, processing, publication, notification, and finalization.
+- Job state first records ingest-routing acceptance or rejection.
+- Accepted jobs run asynchronously without depending on Lambda runtime duration.
+- Accepted jobs advance through processing, publication, notification, and finalization.
 
-## 4. Validate publication and notification
+## 5. Validate publication and notification
 
 Use a successful worker result to continue the flow.
 
@@ -75,12 +96,14 @@ Expected result:
 
 - The processed PDF is published to the flipbook service.
 - The success notification includes the original filename, final status, and flipbook URL.
+- The notification payload also reflects the source site prefix and resulting output location for auditability.
 
-## 5. Validate failure and partial-success paths
+## 6. Validate failure and partial-success paths
 
 Test at least these scenarios:
 
 - Invalid PDF source.
+- Unknown S3 site prefix.
 - SKU not found in the product catalog.
 - Flipbook publication failure after the linked PDF is already created.
 - Notification delivery failure after publication succeeds.
@@ -88,5 +111,6 @@ Test at least these scenarios:
 Expected result:
 
 - Invalid PDFs end in a failed Processing Job with error details.
+- Unknown prefixes fail during ingest-routing before worker invocation.
 - Unmatched SKUs produce no links for those items and do not fail the job.
 - Publication and notification failures preserve already-created artifacts and record the failed stage.
