@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flippingpdftool.local/contracts/worker-job.schema.json",
+  "title": "Automated PDF Worker Job",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "sourceBucket",
+    "sourceKey",
+    "triggeredAt"
+  ],
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique processing job identifier."
+    },
+    "sourceBucket": {
+      "type": "string",
+      "const": "cmg-catalog-book/input",
+      "description": "Input S3 bucket for uploaded PDFs."
+    },
+    "sourceKey": {
+      "type": "string",
+      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
+      "description": "Site-prefixed input object key. Unsupported prefixes are rejected before processing."
+    },
+    "triggeredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when orchestration created the job."
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "Optional trace or correlation identifier."
+    },
+    "requestedBy": {
+      "type": "string",
+      "description": "Optional identifier for the system or operator that initiated the job."
+    }
+  }
+}

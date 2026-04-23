@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flippingpdftool.local/contracts/worker-result.schema.json",
+  "title": "Automated PDF Worker Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "status",
+    "sourceBucket",
+    "sourceKey",
+    "completedAt",
+    "stageResults"
+  ],
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "completed_with_errors"
+      ]
+    },
+    "sourceBucket": {
+      "type": "string",
+      "const": "cmg-catalog-book/input"
+    },
+    "sourceKey": {
+      "type": "string",
+      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$"
+    },
+    "siteCode": {
+      "type": "string",
+      "enum": [
+        "currentcatalog",
+        "colorfulimages",
+        "lillianvernon"
+      ]
+    },
+    "outputBucket": {
+      "type": "string",
+      "const": "cmg-catalog-book/output"
+    },
+    "outputKey": {
+      "type": "string",
+      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$"
+    },
+    "flipbookUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "failedStage": {
+      "type": "string",
+      "enum": [
+        "routing",
+        "download",
+        "processing",
+        "upload",
+        "publication",
+        "notification",
+        "finalize"
+      ]
+    },
+    "errorMessage": {
+      "type": "string"
+    },
+    "pageCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "matchedProductCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unmatchedProductCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stageResults": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "status"
+        ],
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "routing",
+              "download",
+              "processing",
+              "upload",
+              "publication",
+              "notification",
+              "finalize"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "skipped"
+            ]
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "siteCode",
+          "outputBucket",
+          "outputKey",
+          "flipbookUrl"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "completed_with_errors"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "failedStage"
+        ]
+      }
+    }
+  ]
+}
