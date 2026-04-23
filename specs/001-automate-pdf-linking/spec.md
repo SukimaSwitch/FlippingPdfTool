@@ -19,7 +19,8 @@ As a catalog operations manager, I want an uploaded catalog PDF to be processed 
 
 1. **Given** a valid catalog PDF is placed in the configured import location, **When** processing starts, **Then** the system creates one processing job for that file and processes the PDF page by page.
 2. **Given** a page contains a product image and description with a recognizable SKU, **When** the page is processed, **Then** the system adds a hyperlink for the resolved product page to both the product image region and the associated description text in the output PDF.
-3. **Given** processing completes successfully, **When** the output is written, **Then** the processed PDF is stored in the configured output location using the same filename as the source file.
+3. **Given** a SKU is detected but no product is returned by the catalog lookup, **When** the page is processed, **Then** the system leaves the related image and text unchanged and does not add a hyperlink for that product candidate.
+4. **Given** processing completes successfully, **When** the output is written, **Then** the processed PDF is stored in the configured output location using the same filename as the source file.
 
 ---
 
@@ -55,7 +56,7 @@ As a support or operations user, I want failures and partial results to be recor
 
 - A source file is not a valid PDF or cannot be opened for page-by-page processing.
 - A page contains text or images but no SKU that can be matched to a product URL.
-- A SKU is detected but no product URL is returned from the product catalog service.
+- A SKU is detected but no product URL is returned from the product catalog service, so the related image and description must remain unlinked.
 - The same SKU appears multiple times on a page and each matching image-description pair must receive the correct link.
 - The processed PDF is created successfully, but the flipbook service rejects the upload or does not return a publication URL.
 - The workflow completes or fails, but the notification email cannot be delivered.
@@ -68,17 +69,19 @@ As a support or operations user, I want failures and partial results to be recor
 - **FR-001**: The system MUST detect when a PDF file is added to the configured import location and start a single processing job for that file.
 - **FR-002**: The system MUST retrieve the uploaded PDF from storage and process it using the existing page-by-page catalog-linking workflow as the baseline business logic.
 - **FR-003**: The system MUST process the PDF one page at a time and evaluate every page for product figures and related descriptive text.
-- **FR-004**: The system MUST derive candidate product identifiers from page content and use those identifiers to look up a destination product URL from the configured product catalog source.
+- **FR-004**: The system MUST derive candidate product identifiers from page content and use the detected SKU value to search the configured product catalog source for a destination product URL.
 - **FR-005**: The system MUST add hyperlinks to the output PDF for each matched product image and its corresponding product description when a product URL is resolved.
-- **FR-006**: The system MUST preserve pages that have no valid product match without corrupting the remainder of the output PDF.
-- **FR-007**: The system MUST write the processed PDF to the configured output location using the same filename as the source PDF.
-- **FR-008**: The system MUST submit the processed PDF to the configured flipbook publishing service after the output PDF is created.
-- **FR-009**: The system MUST capture the resulting flipbook URL when publication succeeds and associate it with the processing job result.
-- **FR-010**: The system MUST send a success notification to the configured email group after a fully successful run, including at minimum the source filename, overall processing result, and flipbook URL.
-- **FR-011**: The system MUST send a failure notification to the configured email group whenever any stage of the workflow fails, including at minimum the source filename, failed stage, and error details sufficient for triage.
-- **FR-012**: The system MUST log major workflow stages, page-level progress, external service call outcomes, and error conditions for each processing job.
-- **FR-013**: The system MUST retain enough job metadata to distinguish source file ingestion, PDF processing, output storage, publication, notification, and final job status.
-- **FR-014**: The system MUST ensure that failure in a downstream step does not erase or invalidate artifacts that were already created successfully earlier in the same job.
+- **FR-006**: The system MUST leave image and text regions unchanged when no product URL can be resolved for a detected SKU.
+- **FR-007**: The system MUST preserve pages that have no valid product match without corrupting the remainder of the output PDF.
+- **FR-008**: The system MUST support background processing for large uploaded PDFs so the job can continue to completion without requiring the upload event itself to remain active for the full processing duration.
+- **FR-009**: The system MUST write the processed PDF to the configured output location using the same filename as the source PDF.
+- **FR-010**: The system MUST submit the processed PDF to the configured flipbook publishing service after the output PDF is created.
+- **FR-011**: The system MUST capture the resulting flipbook URL when publication succeeds and associate it with the processing job result.
+- **FR-012**: The system MUST send a success notification to the configured email group after a fully successful run, including at minimum the source filename, overall processing result, and flipbook URL.
+- **FR-013**: The system MUST send a failure notification to the configured email group whenever any stage of the workflow fails, including at minimum the source filename, failed stage, and error details sufficient for triage.
+- **FR-014**: The system MUST log major workflow stages, page-level progress, external service call outcomes, and error conditions for each processing job.
+- **FR-015**: The system MUST retain enough job metadata to distinguish source file ingestion, PDF processing, output storage, publication, notification, and final job status.
+- **FR-016**: The system MUST ensure that failure in a downstream step does not erase or invalidate artifacts that were already created successfully earlier in the same job.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -93,17 +96,16 @@ As a support or operations user, I want failures and partial results to be recor
 
 ### Measurable Outcomes
 
-- **SC-001**: 95% of valid uploaded catalog PDFs complete end-to-end processing without manual intervention.
-- **SC-002**: For successful jobs, the linked output PDF is available in the output location within 15 minutes for catalogs of up to 100 pages.
-- **SC-003**: For successful jobs, 100% of processed PDFs that are published produce a usable flipbook URL included in the stakeholder notification.
-- **SC-004**: For successful jobs, at least 90% of product image-description pairs with a resolvable product identifier receive hyperlinks in the output PDF.
-- **SC-005**: 100% of failed jobs generate a notification and a recorded failure reason identifying the stage where the workflow stopped.
+- **SC-001**: For successful jobs, 100% of processed PDFs that are published produce a usable flipbook URL included in the stakeholder notification.
+- **SC-002**: 100% of failed jobs generate a notification and a recorded failure reason identifying the stage where the workflow stopped.
+- **SC-003**: 100% of successful job notifications include the source filename, final job result, and the published flipbook URL.
 
 ## Assumptions
 
 - The import and output locations are preconfigured and accessible to the automation workflow.
 - The existing catalog-linking logic remains the authoritative basis for page rendering, content extraction, SKU detection, and link placement behavior.
 - Uploaded files in scope are catalog PDFs only; non-PDF assets are out of scope for this feature.
-- The product catalog source already contains product URLs for the majority of SKUs expected in uploaded catalogs.
+- The product catalog source supports SKU-based search and returns product URL information when a matching product exists.
+- Catalog PDFs in scope may exceed 70 MB and can require up to roughly one hour to complete processing under expected operating conditions.
 - The configured email group, publication account, and service credentials are available before processing begins.
 - This feature covers automated processing of one uploaded PDF per job and does not include a manual review or correction interface.
