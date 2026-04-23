@@ -1,0 +1,18 @@
+Description: We need to add product links to the product images and product description in the specified PDF.
+
+Requirements:
+1. Utilize Amazon S3 bucket to store the PDF files. The import directory will automatically identify the PDF file is uploaded to the S3 bucket and trigger the following steps.
+2. The lambda function will be triggered by the S3 event when a PDF file is uploaded to the specified bucket.
+3. The lambda function will read the PDF file, and refer to the current implementation in the ./src/main.py to process the PDF file.
+4. The processed PDF file will be stored back in the output directory in S3 bucket with the same name.
+5. Upload the processed PDF file to Flipsbook via their API to generate the online flipbook version of the PDF file.
+6. Send email notification to the specified email group with the processing result and the generated flipbook URL if the processing is successful. If the processing fails, include the error details in the email notification.
+7. We need to log the processing steps and any errors that occur during the processing for debugging and monitoring purposes.
+
+Additional: The PDF file processing should follow the existing logic in the ./src/main.py, which includes:
+- We need to process every page in the PDF one by one.
+- Convert the page to .jpg image.
+- Use OCR (Amazon Textract) to extract figures and text from the image.
+- Identify the product SKU from the extracted text.
+- Use the SKU to query the product URL from Magento API.
+- Add the product URL as a hyperlink to the corresponding product image and product description in the PDF.
