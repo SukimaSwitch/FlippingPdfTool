@@ -9,7 +9,7 @@ Automate the existing page-by-page PDF linking pipeline behind an asynchronous A
 
 ## Technical Context
 
-**Language/Version**: Python 3.10.12  
+**Language/Version**: Python 3.14 container runtime for worker and helper entrypoints; existing local pipeline remains Python-based  
 **Primary Dependencies**: `boto3`, `requests`, `pymupdf`, `opencv-python`, `numpy`, `pillow`, Python `unittest`  
 **Storage**: AWS S3 (`cmg-catalog-book/input`, `cmg-catalog-book/output`), local ephemeral worker filesystem for intermediate files, DynamoDB for processing-job metadata  
 **Testing**: `unittest` via `/home/xzhang/project/FlippingPdfTool/.venv/bin/python -m unittest discover -s tests -v`, plus new contract and integration tests for orchestration adapters  
