@@ -31,4 +31,4 @@
 
 ## Notes
 
-- Validation passed on the first review. The specification uses business-facing terms for storage, publication, catalog lookup, and notification while preserving the required workflow intent from the source request.
+- Validation remains complete after revision. The specification now removes the processing success-rate target, reflects long-running large-file handling as an asynchronous business requirement, and explicitly leaves unmatched SKUs unlinked for manual follow-up.

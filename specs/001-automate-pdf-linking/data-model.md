@@ -2,6 +2,150 @@
 
 ## Source PDF
 
+Represents the uploaded catalog object that triggers processing.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `source_bucket` | string | Yes | Must be `cmg-catalog-book/input`. |
+| `source_key` | string | Yes | Must begin with one of `currentcatalog/`, `colorfulimages/`, or `lillianvernon/`. |
+| `filename` | string | Yes | Original PDF filename, preserved for output naming and notifications. |
+| `size_bytes` | integer | Yes | Used for diagnostics and operational visibility. |
+| `uploaded_at` | datetime | Yes | Ingestion timestamp. |
+| `content_type` | string | No | Expected to be `application/pdf`. |
+| `site_code` | string | Derived | Derived from the first S3 key segment. |
+
+**Validation rules**:
+- `source_key` must end in `.pdf`.
+- Unsupported prefixes fail routing before page processing begins.
+- Non-PDF content is out of scope and should fail ingestion validation.
+
+## Site Configuration
+
+Routing metadata derived from the source prefix.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `site_code` | enum | Yes | `currentcatalog`, `colorfulimages`, `lillianvernon`. |
+| `input_prefix` | string | Yes | Site-specific prefix under `cmg-catalog-book/input`. |
+| `output_prefix` | string | Yes | Matching site-specific prefix under `cmg-catalog-book/output`. |
+| `product_domain` | string | Yes | Site-specific base domain used to generate product URLs. |
+| `magento_store_code` | string | Yes | Used in `/rest/<store_code>/V1/products...`. |
+
+**Relationships**:
+- One `Source PDF` resolves to exactly one `Site Configuration`.
+- One `Site Configuration` can be reused by many jobs.
+
+## Processing Job
+
+The top-level lifecycle record for one uploaded PDF.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `job_id` | string | Yes | Unique identifier shared across orchestration, worker logs, and notifications. |
+| `source_pdf` | Source PDF | Yes | Input document metadata. |
+| `site_configuration` | Site Configuration | Yes | Derived routing configuration. |
+| `status` | enum | Yes | See state transitions below. |
+| `current_stage` | enum | Yes | `ingest`, `routing`, `download`, `processing`, `upload`, `publication`, `notification`, `finalize`. |
+| `started_at` | datetime | Yes | Job start timestamp. |
+| `completed_at` | datetime | No | Set when terminal state is reached. |
+| `output_bucket` | string | No | Expected to be `cmg-catalog-book/output` for successful or partial-success jobs. |
+| `output_key` | string | No | Output PDF key mirroring the site prefix and filename. |
+| `flipbook_url` | string | No | Present only when publication succeeds. |
+| `failure_stage` | string | No | Set when a stage fails. |
+| `failure_code` | string | No | Stable machine-readable error category. |
+| `failure_message` | string | No | Human-readable triage detail. |
+| `page_count` | integer | No | Total pages discovered in the PDF. |
+| `matched_product_count` | integer | No | Count of successful product-link matches. |
+| `unmatched_product_count` | integer | No | Count of SKU candidates without a resolvable destination URL. |
+
+### Processing Job State Transitions
+
+| From | To | Condition |
+|------|----|-----------|
+| `received` | `routing_failed` | Source key prefix is unsupported or input is invalid. |
+| `received` | `routed` | Source file is valid and site configuration is resolved. |
+| `routed` | `processing` | Worker downloads the PDF and begins page processing. |
+| `processing` | `processed` | Linked PDF and page artifacts are produced successfully. |
+| `processed` | `published` | Flipbook publication returns a URL. |
+| `published` | `completed` | Notification succeeds and final state is recorded. |
+| `processing` | `failed` | PDF processing fails before a linked PDF is produced. |
+| `processed` | `partial_failure` | Publication or notification fails after the linked PDF exists. |
+| `partial_failure` | `completed_with_errors` | Finalization completes with preserved artifacts and explicit failure metadata. |
+
+## Page Result
+
+Per-page processing output used for diagnostics and resumability.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `job_id` | string | Yes | Parent job identifier. |
+| `page_number` | integer | Yes | 1-based page number. |
+| `status` | enum | Yes | `processed`, `restored`, `failed`, `skipped`. |
+| `textract_artifact_key` | string | No | Path or S3 key to Textract JSON. |
+| `summary_artifact_key` | string | No | Path or S3 key to per-page summary. |
+| `figure_count` | integer | No | Figures detected on the page. |
+| `match_count` | integer | No | Links created on the page. |
+| `unmatched_sku_count` | integer | No | SKU candidates left unlinked. |
+| `notes` | string | No | Error details or recovery notes. |
+
+## Product Match
+
+Resolved association between page content and a destination product URL.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `job_id` | string | Yes | Parent job identifier. |
+| `page_number` | integer | Yes | Page where the match occurs. |
+| `sku` | string | Yes | Extracted product identifier. |
+| `product_url` | string | Yes | Final link URL, site-specific. |
+| `figure_bbox` | object | Yes | Figure bounding box to annotate in the PDF. |
+| `description_bbox` | object | No | Description text bounding box, when available. |
+| `score` | number | Yes | Match confidence or ranking score. |
+| `sku_source` | enum | Yes | `pdf`, `regional-ocr`, or `ocr`. |
+| `matched_at` | datetime | Yes | Timestamp of resolution. |
+
+**Validation rules**:
+- `product_url` must match the selected `Site Configuration.product_domain`.
+- `sku` must be non-empty and conform to the pipeline's SKU extraction rules.
+
+## Published Output
+
+Linked PDF artifact plus publication result.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `job_id` | string | Yes | Parent job identifier. |
+| `linked_pdf_bucket` | string | Yes | Output bucket for the processed PDF. |
+| `linked_pdf_key` | string | Yes | Output object key. |
+| `flipbook_url` | string | No | Set after successful publication. |
+| `published_at` | datetime | No | Set when publication succeeds. |
+| `publication_status` | enum | Yes | `pending`, `published`, `failed`. |
+
+## Notification Record
+
+Represents an outbound stakeholder notification attempt.
+
+| Field | Type | Required | Notes |
+|------|------|----------|-------|
+| `job_id` | string | Yes | Parent job identifier. |
+| `notification_type` | enum | Yes | `success`, `failure`, `partial_failure`. |
+| `recipient_group` | string | Yes | Configured destination group. |
+| `payload_summary` | object | Yes | Includes filename, final status, failed stage, and flipbook URL when present. |
+| `delivery_status` | enum | Yes | `pending`, `sent`, `failed`. |
+| `attempted_at` | datetime | No | Timestamp for the latest delivery attempt. |
+| `delivery_error` | string | No | Error details when delivery fails. |
+
+## Relationships Overview
+
+- One `Processing Job` has one `Source PDF` and one `Site Configuration`.
+- One `Processing Job` has many `Page Result` records.
+- One `Processing Job` has many `Product Match` records.
+- One `Processing Job` has zero or one `Published Output`.
+- One `Processing Job` has one or more `Notification Record` entries over its lifecycle.
+# Data Model: Automated PDF Link Publishing
+
+## Source PDF
+
 - Purpose: Represents the uploaded catalog document that starts the workflow.
 - Fields:
   - `source_bucket`: Physical S3 bucket name. Planned value: `cmg-catalog-book`.

@@ -5,6 +5,104 @@
 
 ## Summary
 
+Automate the existing page-by-page PDF linking pipeline behind an asynchronous AWS-driven workflow that routes incoming PDFs by S3 prefix, resolves store-specific product URLs through Magento, stores linked outputs back to site-matched S3 prefixes, publishes the final PDF to the flipbook service, and sends success or failure notifications while preserving partial artifacts and explicit job state.
+
+## Technical Context
+
+**Language/Version**: Python 3.14 container runtime for worker and helper entrypoints; existing local pipeline remains Python-based  
+**Primary Dependencies**: `boto3`, `requests`, `pymupdf`, `opencv-python`, `numpy`, `pillow`, Python `unittest`  
+**Storage**: AWS S3 (`cmg-catalog-book/input`, `cmg-catalog-book/output`), local ephemeral worker filesystem for intermediate files, DynamoDB for processing-job metadata  
+**Testing**: `unittest` via `/home/xzhang/project/FlippingPdfTool/.venv/bin/python -m unittest discover -s tests -v`, plus new contract and integration tests for orchestration adapters  
+**Target Platform**: Linux-based container worker in AWS, triggered from S3-backed orchestration  
+**Project Type**: Python CLI plus asynchronous worker/orchestration service  
+**Performance Goals**: Accept valid PDFs larger than 70 MB and 80+ pages, avoid upload-event timeout coupling, preserve resumable page processing, emit terminal or structured job progress  
+**Constraints**: Preserve existing `src/main.py` linking behavior, route strictly by supported S3 prefixes, reject unknown prefixes before processing, keep downstream failures from deleting generated artifacts, use site-specific Magento store codes and product domains  
+**Scale/Scope**: One PDF per processing job, three supported storefronts (`currentcatalog`, `colorfulimages`, `lillianvernon`), page-level artifacts per run, asynchronous publication and notification stages
+
+## Constitution Check
+
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+The repository constitution at `/home/xzhang/project/FlippingPdfTool/.specify/memory/constitution.md` still contains template placeholders rather than enforceable project rules. No active constitutional constraints or mandatory gates are defined, so the feature can proceed. This should be corrected separately so future plans have real governance input.
+
+**Gate Result (pre-research)**: PASS, with no enforceable constitution rules present.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/001-automate-pdf-linking/
+├── plan.md
+├── research.md
+├── data-model.md
+├── quickstart.md
+├── contracts/
+│   ├── worker-job.schema.json
+│   └── worker-result.schema.json
+└── tasks.md
+```
+
+### Source Code (repository root)
+
+```text
+src/
+├── main.py
+├── config.py                  # site prefix and environment configuration
+├── worker.py                  # container entrypoint for async processing
+├── job_models.py              # processing job, stage result, and payload models
+├── orchestration/
+│   └── event_handler.py       # S3 event normalization and job kickoff
+├── services/
+│   ├── pdf_pipeline.py        # extracted reusable page-by-page linking pipeline
+│   ├── routing.py             # prefix-to-site resolution and validation
+│   ├── publication.py         # flipbook publishing workflow
+│   ├── notifications.py       # success and failure notification dispatch
+│   └── job_tracker.py         # job state transitions and persistence
+└── adapters/
+    ├── s3_storage.py          # input download and output upload
+    ├── magento_catalog.py     # site-aware SKU lookup
+    ├── flipbook_client.py     # external publication client
+    └── dynamodb_jobs.py       # job metadata persistence
+
+tests/
+├── test_main.py
+├── unit/
+├── integration/
+└── contract/
+```
+
+**Structure Decision**: Keep a single Python project rooted in `src/` and preserve `src/main.py` as the local CLI entrypoint. Extract reusable pipeline logic behind service and adapter modules so the same core linking behavior can be invoked both locally and from the asynchronous worker.
+
+## Complexity Tracking
+
+No constitution violations require justification.
+
+## Phase 0 Research Summary
+
+Phase 0 outputs are recorded in `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/research.md`.
+
+## Phase 1 Design Summary
+
+Phase 1 outputs are recorded in:
+
+- `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/data-model.md`
+- `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-job.schema.json`
+- `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-result.schema.json`
+- `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md`
+
+## Post-Design Constitution Check
+
+The constitution file still contains placeholders only, so there are no enforceable post-design gates to evaluate. The design remains consistent with the repository's current lightweight Python CLI structure and adds only the minimum new modules required for asynchronous orchestration.
+
+**Gate Result (post-design)**: PASS, with no enforceable constitution rules present.
+# Implementation Plan: Automated PDF Link Publishing
+
+**Branch**: `[001-automate-pdf-linking]` | **Date**: 2026-04-23 | **Spec**: `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/spec.md`
+**Input**: Feature specification from `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/spec.md`
+
+## Summary
+
 Automate catalog processing from site-specific S3 ingest through linked-PDF generation, flipbook publication, and stakeholder notification by wrapping the existing page-by-page Python linker in an AWS Step Functions and ECS Fargate workflow. The design adds an explicit ingest-routing step that validates the source prefix, derives the site configuration for `currentcatalog`, `colorfulimages`, or `lillianvernon`, writes the linked PDF back to the matching output prefix, and fails fast before PDF processing when the prefix is unknown.
 
 ## Technical Context

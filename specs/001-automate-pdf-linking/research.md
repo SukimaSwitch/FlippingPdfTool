@@ -1,3 +1,56 @@
+# Phase 0 Research: Automated PDF Link Publishing
+
+## Decision 1: Route jobs by S3 prefix using a fixed site configuration table
+
+**Decision**: Use the source object key prefix under `cmg-catalog-book/input` as the single source of truth for storefront routing. Support only `currentcatalog/`, `colorfulimages/`, and `lillianvernon/`, each mapped to its output prefix, product URL domain, and Magento store code.
+
+**Rationale**: The spec states operators will upload PDFs manually into the correct site-specific S3 prefix. Using the prefix avoids unreliable filename parsing, keeps routing deterministic, and gives one consistent place to derive domain and Magento store selection.
+
+**Alternatives considered**:
+- Inspecting filenames or PDF content to guess the site: rejected because it is brittle and hard to validate.
+- Passing the site separately in every event payload: rejected because it duplicates information already encoded by the storage layout.
+- Defaulting unknown prefixes to one storefront: rejected because it can silently generate incorrect product links.
+
+## Decision 2: Run the long-lived PDF processing step in a containerized worker, orchestrated outside the upload event path
+
+**Decision**: Keep the upload event lightweight and hand off processing to an asynchronous container worker, coordinated by an orchestration layer that can track stages and continue beyond short event execution limits.
+
+**Rationale**: The current pipeline is CPU- and I/O-heavy, already supports page-by-page progress, and must handle PDFs larger than 70 MB with more than 80 pages. A dedicated worker avoids tying success to event-runtime limits and matches the feature's requirement for long-running jobs.
+
+**Alternatives considered**:
+- Running the full pipeline directly inside the upload-triggered function: rejected because large PDFs exceed safe event-driven execution windows.
+- Rewriting the pipeline as multiple fine-grained page-level functions immediately: rejected because it adds coordination complexity before the core worker contract is established.
+- Manual batch execution only: rejected because it does not satisfy automated processing requirements.
+
+## Decision 3: Preserve the existing `src/main.py` pipeline by extracting reusable services rather than replacing it
+
+**Decision**: Keep `src/main.py` as the baseline CLI and extract reusable pipeline logic into service modules that both the CLI and worker can call.
+
+**Rationale**: The current CLI already encapsulates the authoritative linking behavior, has working unit tests, and supports resumable page-level processing. Reusing that behavior reduces regression risk and keeps local debugging aligned with production behavior.
+
+**Alternatives considered**:
+- Building a separate worker-only implementation: rejected because it would duplicate business logic and increase drift risk.
+- Leaving all logic in `src/main.py` and importing it directly everywhere: rejected because orchestration, storage, and publication concerns need clearer seams for testing.
+
+## Decision 4: Store job state separately from generated PDF artifacts
+
+**Decision**: Persist processing-job state, stage outcomes, and failure details in a dedicated job store while keeping linked PDFs and per-page diagnostics in S3.
+
+**Rationale**: The spec requires explicit job-stage visibility, failure-stage recording, and preservation of artifacts created before downstream failures. A metadata store supports reliable status transitions without overloading object storage as the only state system.
+
+**Alternatives considered**:
+- Using only S3 objects and filenames to infer job status: rejected because it is awkward for partial failure tracking and notification retry logic.
+- Embedding all state in the orchestration engine only: rejected because operations and notifications need stable queryable job records.
+
+## Decision 5: Define orchestration contracts as JSON schemas for worker input and worker result payloads
+
+**Decision**: Document the worker handoff and completion payloads as JSON schema files under `contracts/`.
+
+**Rationale**: The system's external interface is not a public HTTP API; it is the payload boundary between ingestion/orchestration and the asynchronous worker. JSON schemas give a precise contract that can be validated in tests and consumed by multiple orchestrators or adapters.
+
+**Alternatives considered**:
+- Free-form markdown payload examples only: rejected because examples are insufficient for automated validation.
+- Introducing OpenAPI for non-HTTP interactions: rejected because it adds ceremony without matching the actual interface shape.
 # Research: Automated PDF Link Publishing
 
 ## Decision 1: Use Step Functions to orchestrate a Fargate worker for PDF processing
