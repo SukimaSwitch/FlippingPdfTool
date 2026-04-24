@@ -4,16 +4,12 @@ A Python CLI application that renders catalog PDFs to JPG, identifies product fi
 
 The pipeline now processes one page at a time, prints a live progress bar in the terminal, and can resume previously completed pages from saved page summaries.
 
+For the planned cloud workflow, see `specs/001-automate-pdf-linking/aws-beginner-setup.md` for a beginner-friendly AWS setup guide.
+
 ## Installation
 
 1. Clone the repository:
-	```bash
-	git clone https://github.com/SukimaSwitch/FlippingPdfTool.git
-	```
 2. Navigate to the project directory:
-	```bash
-	cd FlippingPdfTool
-	```
 3. Install dependencies with `pip install -r requirements.txt`.
 4. Configure AWS credentials with permission to call Amazon Textract.
 5. Optionally set `AWS_REGION`, `TEXTRACT_ADAPTER_ID`, and `TEXTRACT_ADAPTER_VERSION`.
