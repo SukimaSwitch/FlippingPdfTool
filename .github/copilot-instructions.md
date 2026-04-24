@@ -21,8 +21,8 @@
 - Follow development best practices.
 
 ## Active Technologies
-- Python 3.10.12 + `boto3`, `requests`, `pymupdf`, `opencv-python`, `numpy`, `pillow`, Python `unittest` (001-automate-pdf-linking)
-- AWS S3 (`cmg-catalog-book/input`, `cmg-catalog-book/output`), local ephemeral worker filesystem for intermediate files, DynamoDB for processing-job metadata (001-automate-pdf-linking)
+- Python 3.14 container runtime for the worker and helper entrypoints + boto3, requests, PyMuPDF, Pillow, OpenCV, NumPy, AWS Textract, AWS Step Functions, ECS/Fargate, SES or SNS, Secrets Manager (001-automate-pdf-linking)
+- Amazon S3 for source/output PDFs and processing artifacts, DynamoDB for durable processing-job state, local ephemeral container storage for intermediate page images (001-automate-pdf-linking)
 
 ## Recent Changes
-- 001-automate-pdf-linking: Added Python 3.10.12 + `boto3`, `requests`, `pymupdf`, `opencv-python`, `numpy`, `pillow`, Python `unittest`
+- 001-automate-pdf-linking: Added Python 3.14 container runtime for the worker and helper entrypoints + boto3, requests, PyMuPDF, Pillow, OpenCV, NumPy, AWS Textract, AWS Step Functions, ECS/Fargate, SES or SNS, Secrets Manager
