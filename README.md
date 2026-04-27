@@ -14,6 +14,62 @@ For the planned cloud workflow, see `specs/001-automate-pdf-linking/aws-beginner
 4. Configure AWS credentials with permission to call Amazon Textract.
 5. Optionally set `AWS_REGION`, `TEXTRACT_ADAPTER_ID`, and `TEXTRACT_ADAPTER_VERSION`.
 
+## Worker Runtime Prerequisites
+
+The planned cloud workflow runs the PDF-linking pipeline inside an ECS Fargate worker coordinated by AWS Step Functions.
+
+Minimum AWS prerequisites:
+
+- An S3 bucket layout that uses `cmg-catalog-book` with `input/` and `output/` prefixes.
+- AWS access for S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and CloudWatch.
+- A DynamoDB table for durable processing-job state.
+- Secrets Manager entries for any Magento, flipbook, and notification credentials.
+- An ECS task definition that injects worker environment variables and secrets.
+
+For a guided setup, see `specs/001-automate-pdf-linking/aws-beginner-setup.md`.
+
+## Worker Environment Variables
+
+The worker container is expected to receive routing and job context from the orchestration layer.
+
+Required worker variables:
+
+- `JOB_ID`: Unique processing job identifier shared across logs, persistence, and notifications.
+- `SOURCE_BUCKET`: Physical S3 bucket name for the uploaded source PDF.
+- `SOURCE_KEY`: Full source object key such as `input/currentcatalog/sample-catalog.pdf`.
+- `OUTPUT_BUCKET`: Physical S3 bucket name for the linked output PDF.
+- `OUTPUT_KEY`: Full output object key such as `output/currentcatalog/sample-catalog.pdf`.
+- `SITE_PREFIX`: Routed site code such as `currentcatalog`, `colorfulimages`, or `lillianvernon`.
+- `PUBLIC_DOMAIN`: Site-specific public domain such as `https://www.currentcatalog.com`.
+- `MAGENTO_STORE_CODE`: Site-specific Magento store code used for catalog lookups.
+
+Common optional worker variables:
+
+- `DYNAMODB_TABLE_NAME`: Processing-job table name.
+- `AWS_REGION`: Default AWS region for SDK clients.
+- `TEXTRACT_ADAPTER_ID`: Optional Textract adapter identifier.
+- `TEXTRACT_ADAPTER_VERSION`: Optional Textract adapter version.
+
+Do not place third-party credentials directly in plain environment variables when deploying to AWS. Prefer ECS secret injection from Secrets Manager.
+
+Example local container invocation:
+
+```bash
+docker build -t flipping-pdf-worker .
+
+docker run --rm \
+  -e JOB_ID=test-job-001 \
+  -e SOURCE_BUCKET=cmg-catalog-book \
+  -e SOURCE_KEY=input/currentcatalog/sample-catalog.pdf \
+  -e OUTPUT_BUCKET=cmg-catalog-book \
+  -e OUTPUT_KEY=output/currentcatalog/sample-catalog.pdf \
+  -e SITE_PREFIX=currentcatalog \
+  -e PUBLIC_DOMAIN=https://www.currentcatalog.com \
+  -e MAGENTO_STORE_CODE=currentcatalog \
+  -e AWS_REGION=us-east-1 \
+  flipping-pdf-worker
+```
+
 ## Usage
 
 Run the pipeline with a PDF URL or a local PDF path:

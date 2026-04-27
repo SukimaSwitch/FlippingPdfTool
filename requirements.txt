@@ -1,6 +1,9 @@
+# Core PDF-linking pipeline runtime
 requests
-pymupdf
-pillow
-opencv-python
+PyMuPDF
+Pillow
+opencv-python-headless
 numpy
+
+# AWS worker and cloud service integrations
 boto3
