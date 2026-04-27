@@ -16,10 +16,10 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **Purpose**: Prepare the repository for the worker-based workflow and shared runtime configuration.
 
-- [ ] T001 Update worker and cloud runtime dependencies in requirements.txt
-- [ ] T002 Create the worker package scaffold in src/worker/__init__.py
-- [ ] T003 [P] Add a container build for the worker runtime in Dockerfile
-- [ ] T004 [P] Document worker environment variables and AWS prerequisites in README.md
+- [x] T001 Update worker and cloud runtime dependencies in requirements.txt
+- [x] T002 Create the worker package scaffold in `src/worker/__init__.py`
+- [x] T003 [P] Add a container build for the worker runtime in Dockerfile
+- [x] T004 [P] Document worker environment variables and AWS prerequisites in README.md
 
 ---
 
