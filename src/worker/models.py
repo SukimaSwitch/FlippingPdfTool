@@ -17,6 +17,12 @@ _SITE_DOMAIN_BY_PREFIX: Dict[SitePrefix, str] = {
     "lillianvernon": "https://www.lillianvernon.com",
 }
 
+_PRODUCT_URL_TEMPLATE_BY_PREFIX: Dict[SitePrefix, str] = {
+    "currentcatalog": "https://www.currentcatalog.com/buy/{url_key}.html",
+    "colorfulimages": "https://www.colorfulimages.com/buy/{url_key}.html",
+    "lillianvernon": "https://www.lillianvernon.com/goods/{url_key}.html",
+}
+
 
 def _parse_datetime(value: str) -> datetime:
     normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
@@ -245,12 +251,17 @@ class SiteConfiguration:
     def output_key_for(self, filename: str) -> str:
         return f"{self.output_prefix}{filename}"
 
+    @property
+    def product_url_template(self) -> str:
+        return _PRODUCT_URL_TEMPLATE_BY_PREFIX[self.site_prefix]
+
     def to_dict(self) -> Dict[str, str]:
         return {
             "sitePrefix": self.site_prefix,
             "publicDomain": self.public_domain,
             "magentoStoreCode": self.magento_store_code,
             "magentoProductLookupRoute": self.magento_product_lookup_route,
+            "productUrlTemplate": self.product_url_template,
         }
 
     @classmethod

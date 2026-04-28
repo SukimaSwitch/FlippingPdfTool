@@ -49,6 +49,8 @@ class FakeSession:
 class MagentoCatalogClientTests(unittest.TestCase):
     def setUp(self) -> None:
         self.site_configuration = SiteConfiguration.for_prefix("currentcatalog")
+        self.colorfulimages_site_configuration = SiteConfiguration.for_prefix("colorfulimages")
+        self.lillianvernon_site_configuration = SiteConfiguration.for_prefix("lillianvernon")
 
     def test_lookup_product_match_returns_html_url_for_exact_sku_match(self) -> None:
         session = FakeSession(
@@ -80,7 +82,7 @@ class MagentoCatalogClientTests(unittest.TestCase):
         self.assertEqual(result.status, "matched")
         self.assertEqual(result.matched_sku, "123456")
         self.assertEqual(result.url_key, "spring-floral-mug")
-        self.assertEqual(result.product_url, "https://www.currentcatalog.com/spring-floral-mug.html")
+        self.assertEqual(result.product_url, "https://www.currentcatalog.com/buy/spring-floral-mug.html")
 
     def test_lookup_product_match_ignores_partial_only_candidates(self) -> None:
         session = FakeSession(
@@ -145,7 +147,7 @@ class MagentoCatalogClientTests(unittest.TestCase):
         )
         self.assertEqual(session.requests[1]["method"], "GET")
         self.assertEqual(session.requests[1]["headers"]["Authorization"], "Bearer generated-admin-token")
-        self.assertEqual(result.product_url, "https://www.currentcatalog.com/spring-floral-mug.html")
+        self.assertEqual(result.product_url, "https://www.currentcatalog.com/buy/spring-floral-mug.html")
 
     def test_lookup_product_match_reuses_existing_admin_token_after_first_exchange(self) -> None:
         session = FakeSession(
@@ -223,6 +225,22 @@ class MagentoCatalogClientTests(unittest.TestCase):
 
         self.assertEqual(len(session.requests), 1)
         self.assertEqual(session.requests[0]["headers"]["Authorization"], "Bearer secret-bearer-token")
+
+    def test_build_url_template_uses_site_specific_product_paths(self) -> None:
+        client = MagentoCatalogClient()
+
+        self.assertEqual(
+            client.build_url_template(self.site_configuration),
+            "https://www.currentcatalog.com/buy/{url_key}.html",
+        )
+        self.assertEqual(
+            client.build_url_template(self.colorfulimages_site_configuration),
+            "https://www.colorfulimages.com/buy/{url_key}.html",
+        )
+        self.assertEqual(
+            client.build_url_template(self.lillianvernon_site_configuration),
+            "https://www.lillianvernon.com/goods/{url_key}.html",
+        )
 
 
 if __name__ == "__main__":

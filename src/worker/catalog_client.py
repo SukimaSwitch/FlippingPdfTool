@@ -112,7 +112,7 @@ class MagentoCatalogClient:
         return f"{base_url}{site_configuration.magento_product_lookup_route.format(sku=sku)}"
 
     def build_url_template(self, site_configuration: SiteConfiguration) -> str:
-        return f"{site_configuration.public_domain}/{{url_key}}.html"
+        return site_configuration.product_url_template
 
     def extract_url_key(self, product: Dict[str, Any]) -> Optional[str]:
         for attribute in product.get("custom_attributes", []):
