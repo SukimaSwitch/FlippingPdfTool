@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Mapping, Optional
 
 
 SitePrefix = Literal["currentcatalog", "colorfulimages", "lillianvernon"]
@@ -21,6 +21,204 @@ _SITE_DOMAIN_BY_PREFIX: Dict[SitePrefix, str] = {
 def _parse_datetime(value: str) -> datetime:
     normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
     return datetime.fromisoformat(normalized)
+
+
+def _copy_bbox(value: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    return dict(value) if value is not None else None
+
+
+@dataclass(frozen=True)
+class SourceDocument:
+    bucket: str
+    key: str
+
+    @property
+    def filename(self) -> str:
+        return self.key.rsplit("/", 1)[-1]
+
+    def to_dict(self) -> Dict[str, str]:
+        return {"bucket": self.bucket, "key": self.key, "filename": self.filename}
+
+
+@dataclass(frozen=True)
+class ProductMatch:
+    page_number: int
+    sku: str
+    product_url: Optional[str]
+    figure_bbox: Optional[Dict[str, Any]] = None
+    description_bbox: Optional[Dict[str, Any]] = None
+    description_text: Optional[str] = None
+    score: Optional[float] = None
+    sku_source: Optional[str] = None
+
+    @property
+    def status(self) -> str:
+        return "linked" if self.product_url else "unmatched"
+
+    def to_dict(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "pageNumber": self.page_number,
+            "sku": self.sku,
+            "status": self.status,
+        }
+        if self.product_url is not None:
+            payload["productUrl"] = self.product_url
+        if self.figure_bbox is not None:
+            payload["figureBbox"] = self.figure_bbox
+        if self.description_bbox is not None:
+            payload["descriptionBbox"] = self.description_bbox
+        if self.description_text is not None:
+            payload["descriptionText"] = self.description_text
+        if self.score is not None:
+            payload["score"] = self.score
+        if self.sku_source is not None:
+            payload["skuSource"] = self.sku_source
+        return payload
+
+    @classmethod
+    def from_summary_match(cls, *, page_number: int, payload: Mapping[str, Any]) -> "ProductMatch":
+        return cls(
+            page_number=page_number,
+            sku=payload.get("sku", ""),
+            product_url=payload.get("url"),
+            figure_bbox=_copy_bbox(payload.get("figure_bbox")),
+            description_bbox=_copy_bbox(payload.get("description_bbox")),
+            description_text=payload.get("description_text"),
+            score=payload.get("score"),
+            sku_source=payload.get("sku_source"),
+        )
+
+
+@dataclass(frozen=True)
+class UnmatchedSku:
+    page_number: int
+    sku: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"pageNumber": self.page_number, "sku": self.sku, "status": "unmatched"}
+
+
+@dataclass(frozen=True)
+class UnresolvedMatch:
+    page_number: int
+    sku: Optional[str]
+    matched_sku: Optional[str] = None
+    reason: Optional[str] = None
+    figure_bbox: Optional[Dict[str, Any]] = None
+    description_bbox: Optional[Dict[str, Any]] = None
+    description_text: Optional[str] = None
+    sku_source: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {"pageNumber": self.page_number, "status": "unresolved"}
+        if self.sku is not None:
+            payload["sku"] = self.sku
+        if self.matched_sku is not None:
+            payload["matchedSku"] = self.matched_sku
+        if self.reason is not None:
+            payload["reason"] = self.reason
+        if self.figure_bbox is not None:
+            payload["figureBbox"] = self.figure_bbox
+        if self.description_bbox is not None:
+            payload["descriptionBbox"] = self.description_bbox
+        if self.description_text is not None:
+            payload["descriptionText"] = self.description_text
+        if self.sku_source is not None:
+            payload["skuSource"] = self.sku_source
+        return payload
+
+    @classmethod
+    def from_summary_item(cls, *, page_number: int, payload: Mapping[str, Any]) -> "UnresolvedMatch":
+        return cls(
+            page_number=page_number,
+            sku=payload.get("sku"),
+            matched_sku=payload.get("matched_sku"),
+            reason=payload.get("reason"),
+            figure_bbox=_copy_bbox(payload.get("figure_bbox")),
+            description_bbox=_copy_bbox(payload.get("description_bbox")),
+            description_text=payload.get("description_text"),
+            sku_source=payload.get("sku_source"),
+        )
+
+
+@dataclass(frozen=True)
+class PageResult:
+    page_number: int
+    status: Optional[str]
+    figure_count: int = 0
+    description_candidate_count: int = 0
+    link_count: int = 0
+    unmatched_sku_count: int = 0
+    unresolved_match_count: int = 0
+    error_message: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "pageNumber": self.page_number,
+            "figureCount": self.figure_count,
+            "descriptionCandidateCount": self.description_candidate_count,
+            "linkCount": self.link_count,
+            "unmatchedSkuCount": self.unmatched_sku_count,
+            "unresolvedMatchCount": self.unresolved_match_count,
+        }
+        if self.status is not None:
+            payload["status"] = self.status
+        if self.error_message is not None:
+            payload["errorMessage"] = self.error_message
+        return payload
+
+    @classmethod
+    def from_summary(cls, summary: Mapping[str, Any]) -> "PageResult":
+        return cls(
+            page_number=summary.get("page", 0),
+            status=summary.get("status"),
+            figure_count=summary.get("figure_count", 0),
+            description_candidate_count=summary.get("description_candidate_count", 0),
+            link_count=summary.get("links_added", 0),
+            unmatched_sku_count=len(summary.get("unmatched_skus", [])),
+            unresolved_match_count=len(summary.get("unresolved_matches", [])),
+            error_message=summary.get("error"),
+        )
+
+
+@dataclass(frozen=True)
+class PersistedPageArtifacts:
+    page_results: List[PageResult]
+    product_matches: List[ProductMatch]
+    unmatched_skus: List[UnmatchedSku]
+    unresolved_matches: List[UnresolvedMatch]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "pageResults": [page_result.to_dict() for page_result in self.page_results],
+            "productMatches": [product_match.to_dict() for product_match in self.product_matches],
+            "unmatchedSkus": [unmatched_sku.to_dict() for unmatched_sku in self.unmatched_skus],
+            "unresolvedMatches": [unresolved_match.to_dict() for unresolved_match in self.unresolved_matches],
+        }
+
+    @classmethod
+    def from_page_summaries(cls, page_summaries: List[Mapping[str, Any]]) -> "PersistedPageArtifacts":
+        page_results: List[PageResult] = []
+        product_matches: List[ProductMatch] = []
+        unmatched_skus: List[UnmatchedSku] = []
+        unresolved_matches: List[UnresolvedMatch] = []
+
+        for summary in page_summaries:
+            page_number = summary.get("page", 0)
+            page_results.append(PageResult.from_summary(summary))
+            for match in summary.get("matches", []):
+                product_matches.append(ProductMatch.from_summary_match(page_number=page_number, payload=match))
+            for sku in summary.get("unmatched_skus", []):
+                unmatched_skus.append(UnmatchedSku(page_number=page_number, sku=sku))
+            for unresolved in summary.get("unresolved_matches", []):
+                unresolved_matches.append(UnresolvedMatch.from_summary_item(page_number=page_number, payload=unresolved))
+
+        return cls(
+            page_results=page_results,
+            product_matches=product_matches,
+            unmatched_skus=unmatched_skus,
+            unresolved_matches=unresolved_matches,
+        )
 
 
 @dataclass(frozen=True)
@@ -52,8 +250,6 @@ class SiteConfiguration:
             "sitePrefix": self.site_prefix,
             "publicDomain": self.public_domain,
             "magentoStoreCode": self.magento_store_code,
-            "outputBucket": self.output_bucket,
-            "outputKey": self.output_prefix,
             "magentoProductLookupRoute": self.magento_product_lookup_route,
         }
 
@@ -77,6 +273,7 @@ class WorkerJob:
     artifact_bucket: str
     artifact_prefix: str
     site_configuration: SiteConfiguration
+    source_document: Optional[SourceDocument] = None
     correlation_id: Optional[str] = None
     requested_by: Optional[str] = None
     notification_group: Optional[str] = None
@@ -84,6 +281,8 @@ class WorkerJob:
 
     @property
     def filename(self) -> str:
+        if self.source_document is not None:
+            return self.source_document.filename
         return self.source_key.rsplit("/", 1)[-1]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -127,6 +326,10 @@ class WorkerJob:
             artifact_bucket=payload["artifactBucket"],
             artifact_prefix=payload["artifactPrefix"],
             site_configuration=site_configuration,
+            source_document=SourceDocument(
+                bucket=payload["sourceBucket"],
+                key=payload["sourceKey"],
+            ),
             correlation_id=payload.get("correlationId"),
             requested_by=payload.get("requestedBy"),
             notification_group=payload.get("notificationGroup"),
@@ -149,6 +352,7 @@ class WorkerResult:
     page_count: Optional[int] = None
     matched_sku_count: Optional[int] = None
     unmatched_sku_count: Optional[int] = None
+    unresolved_match_count: Optional[int] = None
     link_count: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -176,6 +380,8 @@ class WorkerResult:
             payload["matchedSkuCount"] = self.matched_sku_count
         if self.unmatched_sku_count is not None:
             payload["unmatchedSkuCount"] = self.unmatched_sku_count
+        if self.unresolved_match_count is not None:
+            payload["unresolvedMatchCount"] = self.unresolved_match_count
         if self.link_count is not None:
             payload["linkCount"] = self.link_count
         return payload

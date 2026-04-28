@@ -23,9 +23,9 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **Purpose**: Prepare the repository, runtime dependencies, and operator documentation for the worker-driven workflow.
 
-- [ ] T001 Align worker and local runtime dependencies in /home/xzhang/project/FlippingPdfTool/requirements.txt and /home/xzhang/project/FlippingPdfTool/Dockerfile
-- [ ] T002 Document AWS, Magento, flipbook, and notification configuration requirements in /home/xzhang/project/FlippingPdfTool/README.md and /home/xzhang/project/FlippingPdfTool/static/Requirements.txt
-- [ ] T003 [P] Refresh local validation and routed-upload setup steps in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md
+- [x] T001 Align worker and local runtime dependencies in /home/xzhang/project/FlippingPdfTool/requirements.txt and /home/xzhang/project/FlippingPdfTool/Dockerfile
+- [x] T002 Document AWS, Magento, flipbook, and notification configuration requirements in /home/xzhang/project/FlippingPdfTool/README.md and /home/xzhang/project/FlippingPdfTool/static/Requirements.txt
+- [x] T003 [P] Refresh local validation and routed-upload setup steps in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md
 
 ---
 
@@ -35,13 +35,13 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete.
 
-- [ ] T004 Normalize the shared-bucket plus site-prefix worker schemas in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-job.schema.json and /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-result.schema.json
-- [ ] T005 [P] Encode exact-SKU matching, `custom_attributes.url_key` extraction, final `.html` URL construction, and unresolved-match rules in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/workflow-contracts.md
-- [ ] T006 [P] Expand shared source, site, job, page-result, product-match, and unresolved-match models in /home/xzhang/project/FlippingPdfTool/src/worker/models.py
-- [ ] T007 [P] Implement supported-prefix validation, site-configuration derivation, and output-key routing in /home/xzhang/project/FlippingPdfTool/src/worker/routing.py
-- [ ] T008 Implement durable job-stage, page-result, and unresolved-match persistence in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
-- [ ] T009 [P] Add structured stage and page logging helpers in /home/xzhang/project/FlippingPdfTool/src/worker/logging_utils.py
-- [ ] T010 Add foundational routing and job-repository unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_site_routing.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_job_repository.py
+- [x] T004 Normalize the shared-bucket plus site-prefix worker schemas in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-job.schema.json and /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/worker-result.schema.json
+- [x] T005 [P] Encode exact-SKU matching, `custom_attributes.url_key` extraction, final `.html` URL construction, and unresolved-match rules in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/contracts/workflow-contracts.md
+- [x] T006 [P] Expand shared source, site, job, page-result, product-match, and unresolved-match models in /home/xzhang/project/FlippingPdfTool/src/worker/models.py
+- [x] T007 [P] Implement supported-prefix validation, site-configuration derivation, and output-key routing in /home/xzhang/project/FlippingPdfTool/src/worker/routing.py
+- [x] T008 Implement durable job-stage, page-result, and unresolved-match persistence in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
+- [x] T009 [P] Add structured stage and page logging helpers in /home/xzhang/project/FlippingPdfTool/src/worker/logging_utils.py
+- [x] T010 Add foundational routing and job-repository unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_site_routing.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_job_repository.py
 
 **Checkpoint**: Shared contracts, routing, persistence, and logging are ready for story work.
 
@@ -55,18 +55,18 @@ description: "Implementation tasks for automated PDF link publishing"
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add worker-contract assertions for exact SKU matching and unresolved `url_key` cases in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [ ] T012 [P] [US1] Add Magento catalog-client unit coverage for exact matches, partial-only matches, and missing `url_key` responses in /home/xzhang/project/FlippingPdfTool/tests/unit/test_catalog_client.py
-- [ ] T013 [P] [US1] Add accepted-route processing integration coverage for linked output, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
+- [x] T011 [P] [US1] Add worker-contract assertions for exact SKU matching and unresolved `url_key` cases in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
+- [x] T012 [P] [US1] Add Magento catalog-client unit coverage for exact matches, partial-only matches, and missing `url_key` responses in /home/xzhang/project/FlippingPdfTool/tests/unit/test_catalog_client.py
+- [x] T013 [P] [US1] Add accepted-route processing integration coverage for linked output, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Refactor the reusable PDF-linking pipeline entrypoint in /home/xzhang/project/FlippingPdfTool/src/main.py
-- [ ] T015 [P] [US1] Implement Magento lookup, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in /home/xzhang/project/FlippingPdfTool/src/worker/catalog_client.py
-- [ ] T016 [P] [US1] Implement source-download, output-upload, and artifact-prefix S3 helpers in /home/xzhang/project/FlippingPdfTool/src/worker/storage_client.py
-- [ ] T017 [US1] Wire routed page processing, resolved-link creation, and unresolved-match capture in /home/xzhang/project/FlippingPdfTool/src/worker/pipeline_runner.py
-- [ ] T018 [US1] Implement accepted-job worker execution and routed output handling in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
-- [ ] T019 [US1] Persist page results, product matches, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
+- [x] T014 [P] [US1] Refactor the reusable PDF-linking pipeline entrypoint in /home/xzhang/project/FlippingPdfTool/src/main.py
+- [x] T015 [P] [US1] Implement Magento lookup, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in /home/xzhang/project/FlippingPdfTool/src/worker/catalog_client.py
+- [x] T016 [P] [US1] Implement source-download, output-upload, and artifact-prefix S3 helpers in /home/xzhang/project/FlippingPdfTool/src/worker/storage_client.py
+- [x] T017 [US1] Wire routed page processing, resolved-link creation, and unresolved-match capture in /home/xzhang/project/FlippingPdfTool/src/worker/pipeline_runner.py
+- [x] T018 [US1] Implement accepted-job worker execution and routed output handling in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
+- [x] T019 [US1] Persist page results, product matches, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
 
 **Checkpoint**: User Story 1 should produce a linked PDF from a valid routed upload without requiring publication or notification.
 
@@ -80,16 +80,16 @@ description: "Implementation tasks for automated PDF link publishing"
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add publication and success-notification contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [ ] T021 [P] [US2] Add publish-and-notify success integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
-- [ ] T022 [P] [US2] Add flipbook-client and success-notification unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_publish_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py
+- [x] T020 [P] [US2] Add publication and success-notification contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
+- [x] T021 [P] [US2] Add publish-and-notify success integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
+- [x] T022 [P] [US2] Add flipbook-client and success-notification unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_publish_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py
 
 ### Implementation for User Story 2
 
-- [ ] T023 [P] [US2] Implement the flipbook publication client in /home/xzhang/project/FlippingPdfTool/src/worker/publish_client.py
-- [ ] T024 [P] [US2] Implement success notification payload construction and delivery in /home/xzhang/project/FlippingPdfTool/src/worker/notify_client.py
-- [ ] T025 [US2] Orchestrate publication, flipbook URL recording, and success notification dispatch in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
-- [ ] T026 [US2] Persist publication and notification stage outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
+- [x] T023 [P] [US2] Implement the flipbook publication client in /home/xzhang/project/FlippingPdfTool/src/worker/publish_client.py
+- [x] T024 [P] [US2] Implement success notification payload construction and delivery in /home/xzhang/project/FlippingPdfTool/src/worker/notify_client.py
+- [x] T025 [US2] Orchestrate publication, flipbook URL recording, and success notification dispatch in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
+- [x] T026 [US2] Persist publication and notification stage outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
 
 **Checkpoint**: User Stories 1 and 2 should run end to end for a successful job and produce a notification containing the flipbook URL.
 
@@ -103,16 +103,16 @@ description: "Implementation tasks for automated PDF link publishing"
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] Add rejected-routing and partial-failure contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [ ] T028 [P] [US3] Add invalid-PDF, publication-failure, and notification-failure integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
-- [ ] T029 [P] [US3] Add failure-notification and artifact-preservation unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_storage_client.py
+- [x] T027 [P] [US3] Add rejected-routing and partial-failure contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
+- [x] T028 [P] [US3] Add invalid-PDF, publication-failure, and notification-failure integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
+- [x] T029 [P] [US3] Add failure-notification and artifact-preservation unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_storage_client.py
 
 ### Implementation for User Story 3
 
-- [ ] T030 [P] [US3] Extend notification handling for failure and partial-success payloads in /home/xzhang/project/FlippingPdfTool/src/worker/notify_client.py
-- [ ] T031 [P] [US3] Preserve diagnostic artifacts and already-created outputs after downstream failures in /home/xzhang/project/FlippingPdfTool/src/worker/storage_client.py
-- [ ] T032 [P] [US3] Track dedupe keys, failure stages, terminal summaries, and completed-with-errors outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
-- [ ] T033 [US3] Reject unsupported prefixes before worker execution and finalize partial-failure outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
+- [x] T030 [P] [US3] Extend notification handling for failure and partial-success payloads in /home/xzhang/project/FlippingPdfTool/src/worker/notify_client.py
+- [x] T031 [P] [US3] Preserve diagnostic artifacts and already-created outputs after downstream failures in /home/xzhang/project/FlippingPdfTool/src/worker/storage_client.py
+- [x] T032 [P] [US3] Track dedupe keys, failure stages, terminal summaries, and completed-with-errors outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
+- [x] T033 [US3] Reject unsupported prefixes before worker execution and finalize partial-failure outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
 
 **Checkpoint**: All terminal outcomes should be diagnosable and should preserve artifacts created before a downstream failure.
 
@@ -122,9 +122,9 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **Purpose**: Finalize regression coverage, operator-facing documentation, and end-to-end validation notes.
 
-- [ ] T034 [P] Add shared CLI and worker-regression coverage in /home/xzhang/project/FlippingPdfTool/tests/test_main.py
-- [ ] T035 [P] Update operator validation steps for Magento exact-match and `url_key` rules in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md and /home/xzhang/project/FlippingPdfTool/README.md
-- [ ] T036 Run the unittest suite and record any remaining infrastructure gaps in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md
+- [x] T034 [P] Add shared CLI and worker-regression coverage in /home/xzhang/project/FlippingPdfTool/tests/test_main.py
+- [x] T035 [P] Update operator validation steps for Magento exact-match and `url_key` rules in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md and /home/xzhang/project/FlippingPdfTool/README.md
+- [x] T036 Run the unittest suite and record any remaining infrastructure gaps in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md
 
 ---
 

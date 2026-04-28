@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Literal, Optional
 
 import requests
 
 from .models import SiteConfiguration
+
+
+LookupStatus = Literal["matched", "unmatched", "unresolved"]
+
+
+@dataclass(frozen=True)
+class ProductLookupResult:
+    detected_sku: str
+    status: LookupStatus
+    matched_sku: Optional[str] = None
+    url_key: Optional[str] = None
+    product_url: Optional[str] = None
+    unresolved_reason: Optional[str] = None
+    product: Optional[Dict[str, Any]] = None
 
 
 class MagentoCatalogClient:
@@ -14,9 +29,52 @@ class MagentoCatalogClient:
         self._session = session or requests.Session()
         self._timeout = timeout
 
+    def build_search_url(self, site_configuration: SiteConfiguration, sku: str) -> str:
+        return f"{site_configuration.public_domain}{site_configuration.magento_product_lookup_route.format(sku=sku)}"
+
     def build_url_template(self, site_configuration: SiteConfiguration) -> str:
-        return f"{site_configuration.public_domain}/sku/{{sku}}"
+        return f"{site_configuration.public_domain}/{{url_key}}.html"
+
+    def extract_url_key(self, product: Dict[str, Any]) -> Optional[str]:
+        for attribute in product.get("custom_attributes", []):
+            if attribute.get("attribute_code") != "url_key":
+                continue
+            url_key = attribute.get("value")
+            if isinstance(url_key, str) and url_key.strip():
+                return url_key.strip()
+        return None
+
+    def lookup_product_match(self, site_configuration: SiteConfiguration, sku: str) -> ProductLookupResult:
+        response = self._session.get(self.build_search_url(site_configuration, sku), timeout=self._timeout)
+        response.raise_for_status()
+        payload = response.json()
+        items = payload.get("items", [])
+
+        exact_match = next((item for item in items if item.get("sku") == sku), None)
+        if exact_match is None:
+            return ProductLookupResult(detected_sku=sku, status="unmatched")
+
+        url_key = self.extract_url_key(exact_match)
+        if not url_key:
+            return ProductLookupResult(
+                detected_sku=sku,
+                status="unresolved",
+                matched_sku=sku,
+                unresolved_reason="missing_url_key",
+                product=exact_match,
+            )
+
+        return ProductLookupResult(
+            detected_sku=sku,
+            status="matched",
+            matched_sku=sku,
+            url_key=url_key,
+            product_url=self.build_url_template(site_configuration).format(url_key=url_key),
+            product=exact_match,
+        )
 
     def lookup_product_url(self, site_configuration: SiteConfiguration, sku: str) -> Optional[str]:
-        template = self.build_url_template(site_configuration)
-        return template.format(sku=sku)
+        return self.lookup_product_match(site_configuration, sku).product_url
+
+
+__all__ = ["MagentoCatalogClient", "ProductLookupResult"]

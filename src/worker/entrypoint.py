@@ -120,6 +120,7 @@ def process_worker_job(
             source_pdf_path=local_source_path,
             workspace_dir=base_dir,
             url_template=catalog.build_url_template(job.site_configuration),
+            url_resolver=lambda sku: catalog.lookup_product_match(job.site_configuration, sku),
         )
 
         output_pdf_path = Path(summary["output_pdf"])
@@ -139,7 +140,8 @@ def process_worker_job(
             output_key=job.output_key,
             page_count=summary.get("pages_processed", 0),
             matched_sku_count=summary.get("matches", 0),
-            unmatched_sku_count=0,
+            unmatched_sku_count=summary.get("unmatched_sku_count", 0),
+            unresolved_match_count=summary.get("unresolved_match_count", 0),
             link_count=summary.get("links_added", 0),
         )
         repository.record_processing_result(result, recorded_at=_utc_now())

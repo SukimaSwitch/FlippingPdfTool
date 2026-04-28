@@ -33,6 +33,30 @@ class SiteRoutingTests(unittest.TestCase):
         self.assertEqual(payload["failureStage"], "ingest-routing")
         self.assertEqual(payload["failureCode"], "unknown-prefix")
 
+    def test_unknown_bucket_is_rejected(self) -> None:
+        decision = route_source_object(
+            job_id="job-bucket-rejected",
+            source_bucket="wrong-bucket",
+            source_key="input/currentcatalog/fall-catalog.pdf",
+        )
+
+        payload = decision.to_dict()
+
+        self.assertEqual(payload["routingStatus"], "rejected")
+        self.assertEqual(payload["failureCode"], "unknown-bucket")
+
+    def test_non_pdf_input_is_rejected(self) -> None:
+        decision = route_source_object(
+            job_id="job-filetype-rejected",
+            source_bucket="cmg-catalog-book",
+            source_key="input/currentcatalog/fall-catalog.txt",
+        )
+
+        payload = decision.to_dict()
+
+        self.assertEqual(payload["routingStatus"], "rejected")
+        self.assertEqual(payload["failureCode"], "invalid-file-type")
+
     def test_worker_job_uses_routed_output(self) -> None:
         job = build_worker_job(
             job_id="job-build",

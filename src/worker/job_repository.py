@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Protocol, Union
 
 import boto3
 
-from .models import WorkerJob, WorkerResult
+from .models import PersistedPageArtifacts, WorkerJob, WorkerResult
 from .routing import RejectedRouting
 
 
@@ -161,6 +161,7 @@ class JobRepository:
             "pageCount": result.page_count,
             "matchedSkuCount": result.matched_sku_count,
             "unmatchedSkuCount": result.unmatched_sku_count,
+            "unresolvedMatchCount": result.unresolved_match_count,
             "linkCount": result.link_count,
             "failureStage": result.failure_stage,
             "failureCode": result.failure_code,
@@ -174,41 +175,8 @@ class JobRepository:
         return self._merge_job(result.job_id, updates)
 
     def record_page_results(self, *, job_id: str, page_summaries: Any) -> Dict[str, Any]:
-        page_results = []
-        product_matches = []
-        for summary in page_summaries:
-            page_results.append(
-                {
-                    "pageNumber": summary.get("page"),
-                    "status": summary.get("status"),
-                    "figureCount": summary.get("figure_count", 0),
-                    "descriptionCandidateCount": summary.get("description_candidate_count", 0),
-                    "linkCount": summary.get("links_added", 0),
-                    "errorMessage": summary.get("error"),
-                }
-            )
-            for match in summary.get("matches", []):
-                product_matches.append(
-                    {
-                        "pageNumber": summary.get("page"),
-                        "sku": match.get("sku"),
-                        "productUrl": match.get("url"),
-                        "figureBbox": match.get("figure_bbox"),
-                        "descriptionBbox": match.get("description_bbox"),
-                        "descriptionText": match.get("description_text"),
-                        "score": match.get("score"),
-                        "skuSource": match.get("sku_source"),
-                        "status": "linked" if match.get("url") else "unmatched",
-                    }
-                )
-
-        return self._merge_job(
-            job_id,
-            {
-                "pageResults": page_results,
-                "productMatches": product_matches,
-            },
-        )
+        artifacts = PersistedPageArtifacts.from_page_summaries(list(page_summaries))
+        return self._merge_job(job_id, artifacts.to_dict())
 
     def record_publication_result(
         self,

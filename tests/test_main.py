@@ -5,7 +5,7 @@ from pathlib import Path
 import fitz
 
 from src.main import CandidateBlock, build_pipeline_args, build_url_template, extract_sku, match_figures_to_descriptions, resolve_page_indexes
-from src.main import FigureMatch, add_links_to_pdf, build_text_candidates, match_to_payload, payload_to_match, resolve_sku_text
+from src.main import FigureMatch, add_links_to_pdf, build_text_candidates, match_to_payload, payload_to_match, resolve_product_links, resolve_sku_text
 from src.worker.pipeline_runner import run_worker_pipeline
 from src.worker.routing import build_worker_job
 
@@ -130,7 +130,87 @@ class MainPipelineTests(unittest.TestCase):
 
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0].sku, "55281")
-        self.assertEqual(matches[0].url, "https://example.com/products/55281")
+        self.assertIsNone(matches[0].url)
+
+    def test_resolve_product_links_applies_exact_match_and_tracks_unresolved_cases(self) -> None:
+        matches = [
+            FigureMatch(
+                page_index=0,
+                figure_bbox={"Left": 0.10, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+                description_text="Snowflake Tray Item 55281 only $24.99",
+                description_bbox={"Left": 0.09, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+                sku="55281",
+                url=None,
+                score=2.1,
+            ),
+            FigureMatch(
+                page_index=0,
+                figure_bbox={"Left": 0.40, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+                description_text="Holiday Bowl Item 77889 only $29.99",
+                description_bbox={"Left": 0.39, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+                sku="77889",
+                url=None,
+                score=2.0,
+            ),
+            FigureMatch(
+                page_index=0,
+                figure_bbox={"Left": 0.70, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+                description_text="Cozy Throw Item 99112 only $39.99",
+                description_bbox={"Left": 0.69, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+                sku="99112",
+                url=None,
+                score=1.9,
+            ),
+        ]
+
+        class LookupResult:
+            def __init__(self, *, status, product_url=None, matched_sku=None, unresolved_reason=None):
+                self.status = status
+                self.product_url = product_url
+                self.matched_sku = matched_sku
+                self.unresolved_reason = unresolved_reason
+
+        def resolver(sku: str):
+            if sku == "55281":
+                return LookupResult(status="matched", product_url="https://www.currentcatalog.com/snowflake-tray.html", matched_sku=sku)
+            if sku == "77889":
+                return LookupResult(status="unresolved", matched_sku=sku, unresolved_reason="missing_url_key")
+            return LookupResult(status="unmatched")
+
+        linked_matches, unmatched_skus, unresolved_matches = resolve_product_links(
+            matches,
+            "https://www.currentcatalog.com/{url_key}.html",
+            resolver,
+        )
+
+        self.assertEqual(len(linked_matches), 1)
+        self.assertEqual(linked_matches[0].url, "https://www.currentcatalog.com/snowflake-tray.html")
+        self.assertEqual(unmatched_skus, ["99112"])
+        self.assertEqual(unresolved_matches[0]["sku"], "77889")
+        self.assertEqual(unresolved_matches[0]["reason"], "missing_url_key")
+
+    def test_resolve_product_links_falls_back_to_url_template_without_resolver(self) -> None:
+        matches = [
+            FigureMatch(
+                page_index=0,
+                figure_bbox={"Left": 0.10, "Top": 0.15, "Width": 0.20, "Height": 0.18},
+                description_text="Snowflake Tray Item 55281 only $24.99",
+                description_bbox={"Left": 0.09, "Top": 0.36, "Width": 0.28, "Height": 0.05},
+                sku="55281",
+                url=None,
+                score=2.1,
+            )
+        ]
+
+        linked_matches, unmatched_skus, unresolved_matches = resolve_product_links(
+            matches,
+            "https://www.currentcatalog.com/sku/{sku}",
+        )
+
+        self.assertEqual(len(linked_matches), 1)
+        self.assertEqual(linked_matches[0].url, "https://www.currentcatalog.com/sku/55281")
+        self.assertEqual(unmatched_skus, [])
+        self.assertEqual(unresolved_matches, [])
 
     def test_match_figures_to_descriptions_uses_each_description_once(self) -> None:
         figure_one = CandidateBlock(

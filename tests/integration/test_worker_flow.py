@@ -33,9 +33,32 @@ class InMemoryStorageClient:
         )
 
 
+class StubCatalogLookupResult:
+    def __init__(self, *, status: str, product_url: str = None, matched_sku: str = None, unresolved_reason: str = None):
+        self.status = status
+        self.product_url = product_url
+        self.matched_sku = matched_sku
+        self.unresolved_reason = unresolved_reason
+
+
 class StubCatalogClient:
     def build_url_template(self, site_configuration):
-        return f"{site_configuration.public_domain}/sku/{{sku}}"
+        return f"{site_configuration.public_domain}/{{url_key}}.html"
+
+    def lookup_product_match(self, site_configuration, sku: str):
+        if sku == "55281":
+            return StubCatalogLookupResult(
+                status="matched",
+                matched_sku=sku,
+                product_url=f"{site_configuration.public_domain}/snowflake-tray.html",
+            )
+        if sku == "88442":
+            return StubCatalogLookupResult(
+                status="unresolved",
+                matched_sku=sku,
+                unresolved_reason="missing_url_key",
+            )
+        return StubCatalogLookupResult(status="unmatched")
 
 
 class InMemoryJobRepository:
@@ -120,15 +143,18 @@ class InMemoryJobRepository:
         return payload
 
 
-def stub_pipeline_runner(*, job, source_pdf_path, workspace_dir, url_template):
+def stub_pipeline_runner(*, job, source_pdf_path, workspace_dir, url_template, url_resolver=None):
     output_path = workspace_dir / "linked_sample.pdf"
     output_path.write_bytes(source_pdf_path.read_bytes())
+    linked_url = url_resolver("55281").product_url if url_resolver else f"{job.site_configuration.public_domain}/sku/55281"
     return {
         "run_id": "run-integration-001",
         "output_pdf": str(output_path),
         "pages_processed": 1,
         "links_added": 2,
         "matches": 1,
+        "unmatched_sku_count": 1,
+        "unresolved_match_count": 1,
         "page_summaries": [
             {
                 "page": 1,
@@ -139,11 +165,23 @@ def stub_pipeline_runner(*, job, source_pdf_path, workspace_dir, url_template):
                 "matches": [
                     {
                         "sku": "55281",
-                        "url": f"{job.site_configuration.public_domain}/sku/55281",
+                        "url": linked_url,
                         "figure_bbox": {"Left": 0.1, "Top": 0.1, "Width": 0.2, "Height": 0.2},
                         "description_bbox": {"Left": 0.1, "Top": 0.4, "Width": 0.2, "Height": 0.1},
                         "description_text": "Snowflake Tray Item 55281 only $24.99",
                         "score": 1.0,
+                        "sku_source": "pdf",
+                    }
+                ],
+                "unmatched_skus": ["66773"],
+                "unresolved_matches": [
+                    {
+                        "sku": "88442",
+                        "matched_sku": "88442",
+                        "reason": "missing_url_key",
+                        "figure_bbox": {"Left": 0.4, "Top": 0.1, "Width": 0.2, "Height": 0.2},
+                        "description_bbox": {"Left": 0.4, "Top": 0.4, "Width": 0.2, "Height": 0.1},
+                        "description_text": "Holiday Bowl Item 88442 only $29.99",
                         "sku_source": "pdf",
                     }
                 ],
@@ -184,12 +222,16 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(result.status, "processed")
             self.assertEqual(result.output_bucket, "cmg-catalog-book")
             self.assertEqual(result.output_key, "output/currentcatalog/sample.pdf")
+            self.assertEqual(result.unmatched_sku_count, 1)
+            self.assertEqual(result.unresolved_match_count, 1)
             self.assertEqual(len(storage_client.uploads), 1)
             self.assertEqual(storage_client.uploads[0]["bucket"], "cmg-catalog-book")
             self.assertEqual(storage_client.uploads[0]["key"], "output/currentcatalog/sample.pdf")
             self.assertEqual(repository.created["job"].job_id, "job-integration-001")
             self.assertEqual(repository.results[-1]["result"].output_key, "output/currentcatalog/sample.pdf")
             self.assertEqual(repository.page_results["job_id"], "job-integration-001")
+            self.assertEqual(repository.page_results["page_summaries"][0]["unmatched_skus"], ["66773"])
+            self.assertEqual(repository.page_results["page_summaries"][0]["unresolved_matches"][0]["sku"], "88442")
 
     def test_success_flow_publishes_flipbook_and_sends_notification(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

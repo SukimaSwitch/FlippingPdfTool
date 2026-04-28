@@ -7,3 +7,6 @@ numpy
 
 # AWS worker and cloud service integrations
 boto3
+
+# Notification delivery adapters
+botocore

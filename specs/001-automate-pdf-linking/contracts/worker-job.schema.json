@@ -38,7 +38,7 @@
     },
     "outputKey": {
       "type": "string",
-      "pattern": "^output\/(currentcatalog|colorfulimages|lillianvernon)\/.*\.pdf$",
+      "pattern": "^output\\/(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
       "description": "Destination object key for the linked PDF using the matched site prefix."
     },
     "artifactBucket": {

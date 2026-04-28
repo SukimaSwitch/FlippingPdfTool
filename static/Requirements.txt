@@ -14,5 +14,14 @@ Additional: The PDF file processing should follow the existing logic in the ./sr
 - Convert the page to .jpg image.
 - Use OCR (Amazon Textract) to extract figures and text from the image.
 - Identify the product SKU from the extracted text.
-- Use the SKU to query the product URL from Magento API.
-- Add the product URL as a hyperlink to the corresponding product image and product description in the PDF.
+- Use the SKU to query the product URL from the Magento API route for the routed store code.
+- Require an exact SKU match from the Magento response before linking.
+- Read `custom_attributes.url_key` from the matching Magento product and build the customer URL as `https://<site-domain>/<url_key>.html`.
+- Leave the corresponding product image and description unlinked when Magento returns only partial matches or omits `url_key` on the exact match.
+- Add the resolved product URL as a hyperlink to the corresponding product image and product description in the PDF.
+
+Configuration Notes:
+- Supported upload prefixes are `input/currentcatalog/`, `input/colorfulimages/`, and `input/lillianvernon/`.
+- The processed PDF must be written to the matching `output/<site-prefix>/` path in the same bucket.
+- The workflow requires AWS access to S3, Textract, DynamoDB, Step Functions, ECS/Fargate, Secrets Manager, and CloudWatch.
+- Third-party configuration is required for Magento, flipbook publication, and SES or SNS notification delivery.

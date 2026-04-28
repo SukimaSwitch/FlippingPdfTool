@@ -61,6 +61,7 @@
 ### Routing rules
 
 - Supported prefixes are only `currentcatalog`, `colorfulimages`, and `lillianvernon`.
+- The physical S3 bucket remains `cmg-catalog-book`; site routing is expressed only through the `input/<site-prefix>/...` and `output/<site-prefix>/...` keys.
 - Routing must derive both the public domain and the Magento store code from the prefix.
 - Rejected routing results must terminate the job before PDF processing starts.
 
@@ -157,6 +158,7 @@ GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][f
 - Final customer URLs must be built as `https://<domain>/<url_key>.html`.
 - If no exact SKU exists, the candidate remains unmatched and unlinked.
 - If an exact SKU exists but `url_key` is missing, the candidate remains unlinked and must be recorded as an unresolved match.
+- Unmatched candidates and unresolved exact matches must remain non-fatal for the overall PDF job unless a separate worker-stage error occurs.
 
 ## 5. Worker Result Contract
 
@@ -203,6 +205,7 @@ GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][f
 - `status` must be `processed` or `failed`.
 - `outputBucket` and `outputKey` are required when `status = processed` and must use the physical bucket `cmg-catalog-book` with an `output/<site-prefix>/...` key.
 - `matchedSkuCount`, `unmatchedSkuCount`, `unresolvedMatchCount`, and `linkCount` summarize the worker's PDF-processing outcome.
+- Persisted page-level summaries under `artifactPrefix` must preserve both unmatched SKU lists and unresolved exact-match details so operators can triage missing links without rerunning the job blindly.
 - `failureStage` and `failureMessage` are required when `status = failed`.
 - `sitePrefix` must match the accepted routing decision.
 - `artifactPrefix` must point to persisted diagnostic artifacts.

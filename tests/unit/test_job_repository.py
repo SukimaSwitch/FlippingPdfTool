@@ -2,7 +2,7 @@ import unittest
 from copy import deepcopy
 
 from src.worker.job_repository import JobRepository
-from src.worker.models import WorkerResult
+from src.worker.models import PersistedPageArtifacts, SourceDocument, WorkerResult
 from src.worker.routing import RejectedRouting, build_worker_job
 
 
@@ -48,6 +48,17 @@ class JobRepositoryTests(unittest.TestCase):
         self.assertEqual(item["currentStage"], "ingest-routing")
         self.assertEqual(item["outputKey"], "output/currentcatalog/spring.pdf")
         self.assertEqual(item["dedupeKey"], "bucket:key:etag")
+
+    def test_worker_job_exposes_shared_source_document_model(self) -> None:
+        job = build_worker_job(
+            job_id="job-source",
+            source_bucket="cmg-catalog-book",
+            source_key="input/currentcatalog/spring.pdf",
+            triggered_at="2026-04-27T12:00:00Z",
+        )
+
+        self.assertIsInstance(job.source_document, SourceDocument)
+        self.assertEqual(job.source_document.to_dict()["filename"], "spring.pdf")
 
     def test_record_processing_result_updates_job_state(self) -> None:
         job = build_worker_job(
@@ -133,6 +144,112 @@ class JobRepositoryTests(unittest.TestCase):
         self.assertEqual(item["currentStage"], "pdf-processing")
         self.assertEqual(item["failureCode"], "invalid-pdf")
         self.assertEqual(item["completedAt"], "2026-04-27T12:03:00Z")
+
+    def test_record_page_results_persists_unmatched_and_unresolved_details(self) -> None:
+        job = build_worker_job(
+            job_id="job-5",
+            source_bucket="cmg-catalog-book",
+            source_key="input/currentcatalog/catalog.pdf",
+            triggered_at="2026-04-27T12:00:00Z",
+        )
+        self.repository.create_job(job)
+
+        item = self.repository.record_page_results(
+            job_id="job-5",
+            page_summaries=[
+                {
+                    "page": 2,
+                    "status": "processed",
+                    "figure_count": 2,
+                    "description_candidate_count": 2,
+                    "links_added": 1,
+                    "matches": [
+                        {
+                            "sku": "55281",
+                            "url": "https://www.currentcatalog.com/snowflake-tray.html",
+                            "figure_bbox": {"Left": 0.1, "Top": 0.1, "Width": 0.2, "Height": 0.2},
+                            "description_bbox": {"Left": 0.1, "Top": 0.4, "Width": 0.2, "Height": 0.1},
+                            "description_text": "Snowflake Tray Item 55281 only $24.99",
+                            "score": 1.0,
+                            "sku_source": "pdf",
+                        }
+                    ],
+                    "unmatched_skus": ["66773"],
+                    "unresolved_matches": [
+                        {
+                            "sku": "88442",
+                            "matched_sku": "88442",
+                            "reason": "missing_url_key",
+                            "figure_bbox": {"Left": 0.4, "Top": 0.1, "Width": 0.2, "Height": 0.2},
+                            "description_bbox": {"Left": 0.4, "Top": 0.4, "Width": 0.2, "Height": 0.1},
+                            "description_text": "Holiday Bowl Item 88442 only $29.99",
+                            "sku_source": "pdf",
+                        }
+                    ],
+                }
+            ],
+        )
+
+        self.assertEqual(item["pageResults"][0]["pageNumber"], 2)
+        self.assertEqual(item["pageResults"][0]["unmatchedSkuCount"], 1)
+        self.assertEqual(item["pageResults"][0]["unresolvedMatchCount"], 1)
+        self.assertEqual(item["productMatches"][0]["status"], "linked")
+        self.assertEqual(item["unmatchedSkus"][0]["sku"], "66773")
+        self.assertEqual(item["unresolvedMatches"][0]["matchedSku"], "88442")
+        self.assertEqual(item["unresolvedMatches"][0]["reason"], "missing_url_key")
+
+    def test_persisted_page_artifacts_model_normalizes_page_summaries(self) -> None:
+        artifacts = PersistedPageArtifacts.from_page_summaries(
+            [
+                {
+                    "page": 1,
+                    "status": "processed",
+                    "figure_count": 0,
+                    "description_candidate_count": 0,
+                    "links_added": 0,
+                    "matches": [],
+                    "unmatched_skus": ["10001"],
+                    "unresolved_matches": [
+                        {
+                            "sku": "20002",
+                            "matched_sku": "20002",
+                            "reason": "missing_url_key",
+                        }
+                    ],
+                }
+            ]
+        )
+
+        payload = artifacts.to_dict()
+        self.assertEqual(payload["pageResults"][0]["unmatchedSkuCount"], 1)
+        self.assertEqual(payload["unmatchedSkus"][0]["status"], "unmatched")
+        self.assertEqual(payload["unresolvedMatches"][0]["status"], "unresolved")
+
+    def test_record_terminal_summary_persists_partial_success_outcome(self) -> None:
+        job = build_worker_job(
+            job_id="job-6",
+            source_bucket="cmg-catalog-book",
+            source_key="input/currentcatalog/catalog.pdf",
+            triggered_at="2026-04-27T12:00:00Z",
+        )
+        self.repository.create_job(job, dedupe_key="bucket:key:etag")
+
+        item = self.repository.record_terminal_summary(
+            job_id="job-6",
+            final_status="partial-success",
+            failure_stage="publication",
+            failure_code="publication-failed",
+            failure_message="Flipbook service rejected the PDF.",
+            dedupe_key="bucket:key:etag",
+            recorded_at="2026-04-27T12:05:00Z",
+        )
+
+        self.assertEqual(item["status"], "partial-success")
+        self.assertEqual(item["finalStatus"], "partial-success")
+        self.assertEqual(item["failureStage"], "publication")
+        self.assertEqual(item["failureCode"], "publication-failed")
+        self.assertEqual(item["dedupeKey"], "bucket:key:etag")
+        self.assertEqual(item["completedAt"], "2026-04-27T12:05:00Z")
 
 
 if __name__ == "__main__":

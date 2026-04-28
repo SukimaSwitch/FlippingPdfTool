@@ -65,6 +65,7 @@ def log_page_progress(
     worker_run_id: Optional[str] = None,
     match_count: Optional[int] = None,
     unmatched_sku_count: Optional[int] = None,
+    unresolved_match_count: Optional[int] = None,
     **fields: Any,
 ) -> Dict[str, Any]:
     return log_workflow_event(
@@ -76,5 +77,6 @@ def log_page_progress(
         workerRunId=worker_run_id,
         matchCount=match_count,
         unmatchedSkuCount=unmatched_sku_count,
+        unresolvedMatchCount=unresolved_match_count,
         **fields,
     )

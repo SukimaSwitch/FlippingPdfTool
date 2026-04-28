@@ -12,6 +12,17 @@ Validate the planned workflow that automates PDF linking, site-aware routing, Ma
 - A representative catalog PDF, ideally including at least one exact Magento match, one partial-only Magento response, and one exact match missing `url_key`.
 - Docker or another container runtime for local worker validation.
 
+Suggested local environment variables for routed validation:
+
+- `AWS_REGION`
+- `DYNAMODB_TABLE_NAME`
+- `MAGENTO_SEARCH_BASE_URL`
+- `MAGENTO_BEARER_TOKEN_SECRET_NAME`
+- `FLIPBOOK_API_BASE_URL`
+- `FLIPBOOK_API_SECRET_NAME`
+- `NOTIFICATION_MODE`
+- `NOTIFICATION_TARGET`
+
 ## 1. Verify the local pipeline baseline
 
 Run the current test suite to confirm the PDF-linking core is stable before orchestration work is exercised.
@@ -31,6 +42,7 @@ Expected result:
 - A linked PDF is produced locally.
 - Per-page summaries and Textract artifacts are created.
 - Link annotations remain visible after saving and reopening the output PDF.
+- Local fallback runs still work even without live Magento credentials.
 
 ## 2. Validate ingest-routing decisions before worker execution
 
@@ -58,6 +70,7 @@ Required validation cases:
 - If the search response contains an item whose `sku` exactly equals the detected catalog SKU and that item has `custom_attributes[].attribute_code = url_key`, build the final link as `https://<domain>/<url_key>.html`.
 - If the response contains only partial or fuzzy SKU candidates, add no link and count the SKU as unmatched.
 - If the response contains an exact SKU match but no `url_key`, add no link and record an unresolved match for triage.
+- If the source key does not start with `input/currentcatalog/`, `input/colorfulimages/`, or `input/lillianvernon/`, reject the job before any Magento or PDF-processing work begins.
 
 Expected result:
 
@@ -85,6 +98,9 @@ docker run --rm \
   -e SITE_PREFIX=currentcatalog \
   -e PUBLIC_DOMAIN=https://www.currentcatalog.com \
   -e MAGENTO_STORE_CODE=currentcatalog \
+  -e MAGENTO_SEARCH_BASE_URL=https://www.currentcatalog.com \
+  -e NOTIFICATION_MODE=ses \
+  -e NOTIFICATION_TARGET=catalog-ops@example.com \
   flipping-pdf-worker
 ```
 
@@ -111,6 +127,7 @@ Expected result:
 - Magento lookups use the routed store code.
 - Exact-match products with `url_key` produce `https://<domain>/<url_key>.html` links.
 - Exact-match products without `url_key` remain unlinked and are recorded as unresolved.
+- The worker writes the linked PDF to the same bucket under the routed `output/<site-prefix>/...` key.
 - The worker uploads the linked PDF and diagnostic artifacts and emits a structured processing result.
 
 ## 5. Exercise orchestration, publication, and notification
@@ -154,7 +171,7 @@ Validated locally on 2026-04-28:
 Observed result:
 
 - The current suite passed locally before this planning refresh.
-- Coverage includes shared CLI and worker reuse plus contract and integration coverage for routed processing, publication, success notification, rejected routing, invalid-PDF handling, publication failure, and notification failure.
+- Coverage includes shared CLI and worker reuse, exact-SKU Magento matching, unresolved `url_key` handling, routed processing, publication, success notification, rejected routing, invalid-PDF handling, publication failure, notification failure, failure-notification payloads, and artifact-retention metadata persistence.
 
 Open validation gap:
 

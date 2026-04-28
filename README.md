@@ -26,6 +26,12 @@ Minimum AWS prerequisites:
 - Secrets Manager entries for any Magento, flipbook, and notification credentials.
 - An ECS task definition that injects worker environment variables and secrets.
 
+Required third-party configuration:
+
+- Magento base route access for each supported store code: `currentcatalog`, `colorfulimages`, and `lillianvernon`.
+- Flipbook API credentials and target publication settings.
+- A notification target using SES or SNS plus the stakeholder email group or topic mapping.
+
 For a guided setup, see `specs/001-automate-pdf-linking/aws-beginner-setup.md`.
 
 ## Worker Environment Variables
@@ -49,6 +55,13 @@ Common optional worker variables:
 - `AWS_REGION`: Default AWS region for SDK clients.
 - `TEXTRACT_ADAPTER_ID`: Optional Textract adapter identifier.
 - `TEXTRACT_ADAPTER_VERSION`: Optional Textract adapter version.
+- `MAGENTO_SEARCH_BASE_URL`: Optional override for the Magento API origin when it differs from `PUBLIC_DOMAIN`.
+- `MAGENTO_BEARER_TOKEN_SECRET_NAME`: Secrets Manager secret name for Magento API authentication.
+- `FLIPBOOK_API_BASE_URL`: Flipbook API origin.
+- `FLIPBOOK_API_SECRET_NAME`: Secrets Manager secret name for flipbook credentials.
+- `NOTIFICATION_MODE`: Notification adapter selection such as `ses` or `sns`.
+- `NOTIFICATION_TARGET`: Email address, group alias, or SNS topic ARN used for job notifications.
+- `NOTIFICATION_SECRET_NAME`: Optional secret name when the selected notification adapter needs credentials beyond the task role.
 
 Do not place third-party credentials directly in plain environment variables when deploying to AWS. Prefer ECS secret injection from Secrets Manager.
 
@@ -95,6 +108,8 @@ Expected behavior:
 
 - Accepted prefixes route to the matching `output/<site-prefix>/...` key.
 - Unknown prefixes fail before PDF processing starts.
+- Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` as `https://<domain>/<url_key>.html`.
+- Exact SKU matches without `url_key` remain unlinked and are recorded as unresolved matches.
 - Publication and notification stages run only when those clients are configured or injected.
 - Partial-success outcomes preserve the linked PDF and record the failed downstream stage.
 
@@ -120,11 +135,11 @@ python src/main.py
 
 ## CLI Options
 
-- `--domain`: Destination domain used to build product URLs as `https://<domain>/sku/<sku>`. Default: `www.currentcatalog.com`
+- `--domain`: Destination domain used for fallback local link generation. Default: `www.currentcatalog.com`
 - `--output-dir`: Directory where rendered page images and the linked PDF are written. Default: `extracted_images`
 - `--figure-info-dir`: Directory where Textract JSON, overlays, and run summaries are written. Default: `figure_info`
 - `--dpi`: Render DPI for the intermediate JPG files. Default: `220`
-- `--url-template`: Optional full product URL template that must contain `{sku}`. If set, it overrides `--domain`
+- `--url-template`: Optional full product URL template for local runs. The worker path can override link resolution through Magento-backed URL lookup.
 - `--aws-region`: AWS region for Textract
 - `--textract-adapter-id`: Optional Textract adapter ID
 - `--textract-adapter-version`: Optional Textract adapter version
@@ -169,5 +184,6 @@ Current validated coverage includes:
 
 - Shared CLI and worker pipeline reuse
 - Accepted-route processing and matched output routing
+- Exact-SKU Magento matching plus unresolved `url_key` handling
 - Publication and success notification flow
 - Rejected-prefix, invalid-PDF, publication-failure, and notification-failure handling

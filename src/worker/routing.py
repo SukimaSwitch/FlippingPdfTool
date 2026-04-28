@@ -28,6 +28,7 @@ class AcceptedRouting:
             "routingStatus": self.routing_status,
             "siteConfiguration": {
                 **self.site_configuration.to_dict(),
+                "outputBucket": self.site_configuration.output_bucket,
                 "outputKey": self.output_key,
             },
         }
@@ -125,10 +126,7 @@ def build_worker_job(
         "outputKey": routing.output_key,
         "artifactBucket": artifact_bucket or source_bucket,
         "artifactPrefix": ARTIFACT_PREFIX_TEMPLATE.format(job_id=job_id),
-        "siteConfiguration": {
-            **routing.site_configuration.to_dict(),
-            "outputKey": routing.output_key,
-        },
+        "siteConfiguration": routing.site_configuration.to_dict(),
     }
     if correlation_id:
         payload["correlationId"] = correlation_id

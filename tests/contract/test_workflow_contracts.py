@@ -1,6 +1,7 @@
 import re
 import unittest
 
+from src.worker.models import WorkerResult
 from src.worker.notify_client import build_failure_notification_payload, build_success_notification_payload
 from src.worker.publish_client import build_publication_request
 from src.worker.routing import route_source_object
@@ -27,14 +28,47 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertRegex(payload["outputKey"], r"^output/currentcatalog/.*\.pdf$")
         self.assertEqual(payload["artifactBucket"], "cmg-catalog-book")
         self.assertEqual(payload["artifactPrefix"], "artifacts/job-contract-001/")
+        self.assertEqual(
+            set(payload["siteConfiguration"].keys()),
+            {"sitePrefix", "publicDomain", "magentoStoreCode", "magentoProductLookupRoute"},
+        )
         self.assertEqual(payload["siteConfiguration"]["sitePrefix"], "currentcatalog")
         self.assertEqual(payload["siteConfiguration"]["publicDomain"], "https://www.currentcatalog.com")
         self.assertEqual(payload["siteConfiguration"]["magentoStoreCode"], "currentcatalog")
-        self.assertIn("/rest/currentcatalog/V1/products", payload["siteConfiguration"]["magentoProductLookupRoute"])
+        self.assertEqual(
+            payload["siteConfiguration"]["magentoProductLookupRoute"],
+            "/rest/currentcatalog/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku"
+            "&searchCriteria[filterGroups][0][filters][0][value]={sku}"
+            "&searchCriteria[filterGroups][0][filters][0][conditionType]=like",
+        )
         self.assertEqual(payload["notificationGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["flipbookProfile"], "default")
 
         self.assertTrue(re.match(r"^\d{4}-\d{2}-\d{2}T", payload["triggeredAt"]))
+
+    def test_processed_worker_result_reports_unmatched_and_unresolved_us1_counts(self) -> None:
+        payload = WorkerResult(
+            job_id="job-result-001",
+            status="processed",
+            site_prefix="currentcatalog",
+            artifact_prefix="artifacts/job-result-001/",
+            worker_run_id="run-result-001",
+            output_bucket="cmg-catalog-book",
+            output_key="output/currentcatalog/spring-2026-catalog.pdf",
+            page_count=96,
+            matched_sku_count=148,
+            unmatched_sku_count=7,
+            unresolved_match_count=2,
+            link_count=296,
+        ).to_dict()
+
+        self.assertEqual(payload["status"], "processed")
+        self.assertEqual(payload["outputBucket"], "cmg-catalog-book")
+        self.assertEqual(payload["outputKey"], "output/currentcatalog/spring-2026-catalog.pdf")
+        self.assertEqual(payload["matchedSkuCount"], 148)
+        self.assertEqual(payload["unmatchedSkuCount"], 7)
+        self.assertEqual(payload["unresolvedMatchCount"], 2)
+        self.assertEqual(payload["linkCount"], 296)
 
     def test_publication_request_matches_us2_contract(self) -> None:
         request = build_publication_request(
