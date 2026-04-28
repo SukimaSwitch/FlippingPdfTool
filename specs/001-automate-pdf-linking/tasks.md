@@ -29,13 +29,13 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete.
 
-- [ ] T005 Reconcile worker input schema with the S3 bucket-plus-prefix routing model in specs/001-automate-pdf-linking/contracts/worker-job.schema.json
-- [ ] T006 [P] Reconcile worker result schema and workflow payload examples in specs/001-automate-pdf-linking/contracts/worker-result.schema.json and specs/001-automate-pdf-linking/contracts/workflow-contracts.md
-- [ ] T007 [P] Create shared job and site configuration models in src/worker/models.py
-- [ ] T008 [P] Implement site-prefix validation and output routing in src/worker/routing.py
-- [ ] T009 Implement durable job-state persistence for processing stages in src/worker/job_repository.py
-- [ ] T010 [P] Add structured workflow logging helpers for stage and page progress in src/worker/logging_utils.py
-- [ ] T011 Add foundational unit coverage for routing and job state persistence in tests/unit/test_site_routing.py and tests/unit/test_job_repository.py
+- [x] T005 Reconcile worker input schema with the S3 bucket-plus-prefix routing model in specs/001-automate-pdf-linking/contracts/worker-job.schema.json
+- [x] T006 [P] Reconcile worker result schema and workflow payload examples in specs/001-automate-pdf-linking/contracts/worker-result.schema.json and specs/001-automate-pdf-linking/contracts/workflow-contracts.md
+- [x] T007 [P] Create shared job and site configuration models in src/worker/models.py
+- [x] T008 [P] Implement site-prefix validation and output routing in src/worker/routing.py
+- [x] T009 Implement durable job-state persistence for processing stages in src/worker/job_repository.py
+- [x] T010 [P] Add structured workflow logging helpers for stage and page progress in src/worker/logging_utils.py
+- [x] T011 Add foundational unit coverage for routing and job state persistence in tests/unit/test_site_routing.py and tests/unit/test_job_repository.py
 
 **Checkpoint**: Routing, contracts, persistence, and logging are ready for story implementation.
 
@@ -49,17 +49,17 @@ description: "Implementation tasks for automated PDF link publishing"
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add worker-input contract validation coverage in tests/contract/test_workflow_contracts.py
-- [ ] T013 [P] [US1] Add an accepted-route processing integration test in tests/integration/test_worker_flow.py
+- [x] T012 [P] [US1] Add worker-input contract validation coverage in tests/contract/test_workflow_contracts.py
+- [x] T013 [P] [US1] Add an accepted-route processing integration test in tests/integration/test_worker_flow.py
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Refactor src/main.py to expose a reusable PDF-linking pipeline entrypoint in src/main.py
-- [ ] T015 [P] [US1] Implement the Magento SKU lookup adapter in src/worker/catalog_client.py
-- [ ] T016 [P] [US1] Implement S3 download and upload helpers for source PDFs and linked outputs in src/worker/storage_client.py
-- [ ] T017 [US1] Implement the worker pipeline runner that invokes the shared PDF-linking core and stages page artifacts in src/worker/pipeline_runner.py
-- [ ] T018 [US1] Implement the worker entrypoint for accepted jobs and matched output routing in src/worker/entrypoint.py
-- [ ] T019 [US1] Add page-result and product-match persistence during processing in src/worker/job_repository.py
+- [x] T014 [P] [US1] Refactor src/main.py to expose a reusable PDF-linking pipeline entrypoint in src/main.py
+- [x] T015 [P] [US1] Implement the Magento SKU lookup adapter in src/worker/catalog_client.py
+- [x] T016 [P] [US1] Implement S3 download and upload helpers for source PDFs and linked outputs in src/worker/storage_client.py
+- [x] T017 [US1] Implement the worker pipeline runner that invokes the shared PDF-linking core and stages page artifacts in src/worker/pipeline_runner.py
+- [x] T018 [US1] Implement the worker entrypoint for accepted jobs and matched output routing in src/worker/entrypoint.py
+- [x] T019 [US1] Add page-result and product-match persistence during processing in src/worker/job_repository.py
 
 **Checkpoint**: User Story 1 should produce a linked PDF from a valid uploaded catalog without publication or notification stages.
 

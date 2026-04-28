@@ -169,6 +169,34 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def build_pipeline_args(**overrides: Any) -> argparse.Namespace:
+    options = {
+        "pdf": None,
+        "domain": DEFAULT_DOMAIN,
+        "output_dir": str(DEFAULT_OUTPUT_DIR),
+        "figure_info_dir": str(DEFAULT_INFO_DIR),
+        "dpi": DEFAULT_RENDER_DPI,
+        "url_template": None,
+        "aws_region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION"),
+        "textract_adapter_id": os.getenv("TEXTRACT_ADAPTER_ID"),
+        "textract_adapter_version": os.getenv("TEXTRACT_ADAPTER_VERSION"),
+        "debug_overlays": False,
+        "page_start": 1,
+        "page_end": None,
+        "max_pages": None,
+        "resume_run_id": None,
+        "skip_existing": False,
+        "keep_rendered_pages": False,
+        "textract_retries": 3,
+    }
+    options.update(overrides)
+    return argparse.Namespace(**options)
+
+
+def run_pipeline_from_options(**options: Any) -> Dict[str, Any]:
+    return run_pipeline(build_pipeline_args(**options))
+
+
 def build_url_template(domain: str, url_template: Optional[str]) -> str:
     if url_template:
         return url_template

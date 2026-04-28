@@ -2,6 +2,66 @@
 
 This guide turns the planned AWS architecture for FlippingPdfTool into a beginner-friendly setup sequence. It is based on the workflow design in this feature branch, not on a fully deployed implementation. Some application pieces are still planned work, but this document shows how the AWS side is expected to fit together.
 
+## Provisioned AWS Baseline
+
+The following AWS prerequisites were provisioned for this feature branch on 2026-04-27 and can be treated as the current environment baseline for implementation and validation.
+
+### S3
+
+- Bucket: `cmg-catalog-book`
+- Object ownership: ACLs disabled
+- Public access: block all public access
+- Encryption: SSE-S3
+
+Configured prefix layout:
+
+- `artifacts/`
+- `input/currentcatalog/`
+- `input/colorfulimages/`
+- `input/lillianvernon/`
+- `output/currentcatalog/`
+- `output/colorfulimages/`
+- `output/lillianvernon/`
+
+### DynamoDB
+
+- Table: `ProcessingJobs`
+- Partition key: `jobId` (string)
+- Capacity mode: on-demand
+
+### Secrets Manager
+
+Configured secret names:
+
+- `flipping-pdf/magento`
+- `flipping-pdf/flipbook`
+- `flipping-pdf/notifications`
+
+Secret values are intentionally not stored in the repository. Only secret names and integration ownership are tracked here.
+
+### Container and Workflow Infrastructure
+
+- ECR repository: `flipping-pdf-worker`
+- ECS cluster: `flipping-pdf-cluster`
+- ECS task definition: `flipping-pdf-worker-task`
+- Step Functions state machine: `flipping-pdf-workflow`
+- EventBridge rule: `S3-to-FlippingPDF-Workflow`
+
+### IAM Roles
+
+- `StepFunctions-FlippingPdf-Role`
+- `ECS-TaskExecution-Role`
+- `ECS-Worker-Task-Role`
+
+### CloudWatch Logs
+
+- `/aws/ecs/flipping-pdf-worker` with 30-day retention
+- `/aws/states/flipping-pdf-workflow` with 30-day retention
+
+### Implementation Note
+
+This baseline confirms the production routing model for one shared bucket with site-specific prefixes under `input/` and `output/`. Any worker contracts, routing helpers, or workflow payload examples should treat the bucket name and object key as separate fields.
+
 ## What You Are Building
 
 The planned flow is:

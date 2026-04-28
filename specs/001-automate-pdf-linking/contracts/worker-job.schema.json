@@ -18,13 +18,13 @@
     },
     "sourceBucket": {
       "type": "string",
-      "const": "cmg-catalog-book/input",
-      "description": "Input S3 bucket for uploaded PDFs."
+      "const": "cmg-catalog-book",
+      "description": "Physical S3 bucket for uploaded PDFs."
     },
     "sourceKey": {
       "type": "string",
-      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
-      "description": "Site-prefixed input object key. Unsupported prefixes are rejected before processing."
+      "pattern": "^input\/(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
+      "description": "Input object key under the supported site prefix. Unsupported prefixes are rejected before processing."
     },
     "triggeredAt": {
       "type": "string",

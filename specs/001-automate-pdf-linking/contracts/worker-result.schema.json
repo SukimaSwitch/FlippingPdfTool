@@ -7,10 +7,8 @@
   "required": [
     "jobId",
     "status",
-    "sourceBucket",
-    "sourceKey",
-    "completedAt",
-    "stageResults"
+    "sitePrefix",
+    "artifactPrefix"
   ],
   "properties": {
     "jobId": {
@@ -20,20 +18,15 @@
     "status": {
       "type": "string",
       "enum": [
-        "completed",
-        "failed",
-        "completed_with_errors"
+        "processed",
+        "failed"
       ]
     },
-    "sourceBucket": {
+    "workerRunId": {
       "type": "string",
-      "const": "cmg-catalog-book/input"
+      "minLength": 1
     },
-    "sourceKey": {
-      "type": "string",
-      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$"
-    },
-    "siteCode": {
+    "sitePrefix": {
       "type": "string",
       "enum": [
         "currentcatalog",
@@ -43,83 +36,45 @@
     },
     "outputBucket": {
       "type": "string",
-      "const": "cmg-catalog-book/output"
+      "const": "cmg-catalog-book"
     },
     "outputKey": {
       "type": "string",
-      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$"
+      "pattern": "^output\/(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$"
     },
-    "flipbookUrl": {
+    "artifactPrefix": {
       "type": "string",
-      "format": "uri"
+      "pattern": "^artifacts\/.*"
     },
-    "failedStage": {
+    "failureStage": {
       "type": "string",
       "enum": [
-        "routing",
         "download",
         "processing",
-        "upload",
-        "publication",
-        "notification",
-        "finalize"
+        "upload"
       ]
     },
-    "errorMessage": {
+    "failureCode": {
+      "type": "string"
+    },
+    "failureMessage": {
       "type": "string"
     },
     "pageCount": {
       "type": "integer",
       "minimum": 0
     },
-    "matchedProductCount": {
+    "matchedSkuCount": {
       "type": "integer",
       "minimum": 0
     },
-    "unmatchedProductCount": {
+    "unmatchedSkuCount": {
       "type": "integer",
       "minimum": 0
     },
-    "completedAt": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "stageResults": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "stage",
-          "status"
-        ],
-        "properties": {
-          "stage": {
-            "type": "string",
-            "enum": [
-              "routing",
-              "download",
-              "processing",
-              "upload",
-              "publication",
-              "notification",
-              "finalize"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "succeeded",
-              "failed",
-              "skipped"
-            ]
-          },
-          "details": {
-            "type": "string"
-          }
-        }
-      }
+    "linkCount": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "allOf": [
@@ -127,16 +82,19 @@
       "if": {
         "properties": {
           "status": {
-            "const": "completed"
+            "const": "processed"
           }
         }
       },
       "then": {
         "required": [
-          "siteCode",
+          "workerRunId",
           "outputBucket",
           "outputKey",
-          "flipbookUrl"
+          "pageCount",
+          "matchedSkuCount",
+          "unmatchedSkuCount",
+          "linkCount"
         ]
       }
     },
@@ -144,16 +102,14 @@
       "if": {
         "properties": {
           "status": {
-            "enum": [
-              "failed",
-              "completed_with_errors"
-            ]
+            "const": "failed"
           }
         }
       },
       "then": {
         "required": [
-          "failedStage"
+          "failureStage",
+          "failureMessage"
         ]
       }
     }

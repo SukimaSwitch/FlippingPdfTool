@@ -123,12 +123,29 @@
 }
 ```
 
+### Failed result example
+
+```json
+{
+  "jobId": "job-20260423-001",
+  "status": "failed",
+  "workerRunId": "58f48d87ca3b",
+  "sitePrefix": "currentcatalog",
+  "artifactPrefix": "artifacts/job-20260423-001/",
+  "failureStage": "processing",
+  "failureCode": "invalid-pdf",
+  "failureMessage": "PDF could not be opened for page processing."
+}
+```
+
 ### Contract rules
 
 - `status` must be `processed` or `failed`.
-- `outputBucket` and `outputKey` are required when `status = processed`.
+- `outputBucket` and `outputKey` are required when `status = processed` and must use the physical bucket `cmg-catalog-book` with an `output/<site-prefix>/...` object key.
+- `failureStage` and `failureMessage` are required when `status = failed`.
 - `sitePrefix` must match the accepted routing decision.
 - `artifactPrefix` must point to persisted diagnostic artifacts for troubleshooting.
+- Worker results cover only the PDF-processing slice. Publication and notification outcomes are handled by later workflow steps.
 
 ## 5. Flipbook Publication Contract
 
