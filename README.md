@@ -55,13 +55,17 @@ Common optional worker variables:
 - `AWS_REGION`: Default AWS region for SDK clients.
 - `TEXTRACT_ADAPTER_ID`: Optional Textract adapter identifier.
 - `TEXTRACT_ADAPTER_VERSION`: Optional Textract adapter version.
+- `MAGENTO_SECRET_NAME`: Secrets Manager secret name containing Magento connection settings such as host and credentials.
 - `MAGENTO_SEARCH_BASE_URL`: Optional override for the Magento API origin when it differs from `PUBLIC_DOMAIN`.
 - `MAGENTO_BEARER_TOKEN_SECRET_NAME`: Secrets Manager secret name for Magento API authentication.
 - `FLIPBOOK_API_BASE_URL`: Flipbook API origin.
+- `FLIPBOOK_SECRET_NAME`: Secrets Manager secret name containing flipbook connection settings such as URL and API key.
 - `FLIPBOOK_API_SECRET_NAME`: Secrets Manager secret name for flipbook credentials.
 - `NOTIFICATION_MODE`: Notification adapter selection such as `ses` or `sns`.
 - `NOTIFICATION_TARGET`: Email address, group alias, or SNS topic ARN used for job notifications.
-- `NOTIFICATION_SECRET_NAME`: Optional secret name when the selected notification adapter needs credentials beyond the task role.
+- `NOTIFICATION_SECRET_NAME`: Secrets Manager secret name containing notification defaults such as the recipient address.
+- `NOTIFICATION_SOURCE`: Required when `NOTIFICATION_MODE=ses` unless the notification secret already contains a `source` email address.
+- `NOTIFICATION_TOPIC_ARN`: Required when `NOTIFICATION_MODE=sns` unless the notification secret already contains `topic_arn`.
 
 Do not place third-party credentials directly in plain environment variables when deploying to AWS. Prefer ECS secret injection from Secrets Manager.
 
@@ -110,8 +114,17 @@ Expected behavior:
 - Unknown prefixes fail before PDF processing starts.
 - Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` as `https://<domain>/<url_key>.html`.
 - Exact SKU matches without `url_key` remain unlinked and are recorded as unresolved matches.
+- The container runtime can now bootstrap worker jobs directly from environment variables and Secrets Manager when launched with `python -m src.worker.entrypoint`.
 - Publication and notification stages run only when those clients are configured or injected.
+- Failure notifications now fire for rejected-routing and processing-stage failures when notification delivery is configured.
 - Partial-success outcomes preserve the linked PDF and record the failed downstream stage.
+
+Staging note:
+
+- If the flipbook secret is blank, routed linking and artifact persistence can still be staged, but a full success-path publication check is not possible yet.
+- A notification recipient secret provides the target address only; actual SES or SNS delivery still depends on a real sender or topic configuration in the deployed environment.
+- For SES delivery, the runtime now fails fast unless it can resolve a sender email from `NOTIFICATION_SOURCE` or `NOTIFICATION_SECRET_NAME.source`.
+- Success notifications still depend on publication success, so they remain unavailable while the flipbook secret is blank.
 
 ## Usage
 

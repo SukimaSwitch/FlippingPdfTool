@@ -16,12 +16,16 @@ Suggested local environment variables for routed validation:
 
 - `AWS_REGION`
 - `DYNAMODB_TABLE_NAME`
+- `MAGENTO_SECRET_NAME`
 - `MAGENTO_SEARCH_BASE_URL`
 - `MAGENTO_BEARER_TOKEN_SECRET_NAME`
+- `FLIPBOOK_SECRET_NAME`
 - `FLIPBOOK_API_BASE_URL`
 - `FLIPBOOK_API_SECRET_NAME`
 - `NOTIFICATION_MODE`
 - `NOTIFICATION_TARGET`
+- `NOTIFICATION_SECRET_NAME`
+- `NOTIFICATION_SOURCE` for SES delivery, or `NOTIFICATION_TOPIC_ARN` for SNS delivery
 
 ## 1. Verify the local pipeline baseline
 
@@ -98,9 +102,12 @@ docker run --rm \
   -e SITE_PREFIX=currentcatalog \
   -e PUBLIC_DOMAIN=https://www.currentcatalog.com \
   -e MAGENTO_STORE_CODE=currentcatalog \
+  -e DYNAMODB_TABLE_NAME=ProcessingJobs \
+  -e MAGENTO_SECRET_NAME=flipping-pdf/magento \
   -e MAGENTO_SEARCH_BASE_URL=https://www.currentcatalog.com \
+  -e FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook \
   -e NOTIFICATION_MODE=ses \
-  -e NOTIFICATION_TARGET=catalog-ops@example.com \
+  -e NOTIFICATION_SECRET_NAME=flipping-pdf/notifications \
   flipping-pdf-worker
 ```
 
@@ -129,6 +136,14 @@ Expected result:
 - Exact-match products without `url_key` remain unlinked and are recorded as unresolved.
 - The worker writes the linked PDF to the same bucket under the routed `output/<site-prefix>/...` key.
 - The worker uploads the linked PDF and diagnostic artifacts and emits a structured processing result.
+
+Staging recommendation when flipbook credentials are still blank:
+
+- Proceed with staged worker deployment for ingest-routing, PDF linking, S3 output, DynamoDB persistence, and artifact retention.
+- Treat flipbook publication as intentionally unavailable until the flipbook secret contains both a URL and API key.
+- Do not use staging success notifications as proof of production readiness until a real delivery adapter and sender configuration are verified.
+- A notification secret containing only `recipient` is not enough for SES delivery; add `source` or supply `NOTIFICATION_SOURCE`, or switch staging to SNS with a real topic ARN.
+- Rejected-routing and processing failures can now exercise real failure notifications in staging even before flipbook publication is enabled.
 
 ## 5. Exercise orchestration, publication, and notification
 
@@ -176,3 +191,5 @@ Observed result:
 Open validation gap:
 
 - Live AWS integration remains unverified in automation and still depends on real infrastructure, credentials, and third-party endpoints.
+- A blank flipbook secret blocks full US2 success-path validation even though the worker can still run staged US1 and partial-failure flows.
+- A notification secret containing only a recipient does not yet prove live SES or SNS delivery in staging.

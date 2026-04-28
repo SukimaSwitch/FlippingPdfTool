@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional
+import json
+from typing import Any, Callable, Dict, Optional
 
 
 def build_success_notification_payload(
@@ -48,6 +49,48 @@ def build_failure_notification_payload(
         "failureStage": failure_stage,
         "failureMessage": failure_message,
     }
+
+
+def build_notification_subject(payload: Dict[str, Optional[str]]) -> str:
+    notification_type = payload.get("notificationType") or "update"
+    site_prefix = payload.get("sitePrefix") or "unknown-site"
+    filename = payload.get("filename") or "unknown-file"
+    return f"[{site_prefix}] PDF processing {notification_type}: {filename}"
+
+
+def build_notification_message(payload: Dict[str, Optional[str]]) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def build_ses_sender(*, ses_client: Any, source_email: str) -> Callable[[Dict[str, Optional[str]]], None]:
+    def sender(payload: Dict[str, Optional[str]]) -> None:
+        recipient = payload.get("recipientGroup")
+        if not recipient:
+            raise ValueError("Notification payload is missing recipientGroup")
+        ses_client.send_email(
+            Source=source_email,
+            Destination={"ToAddresses": [recipient]},
+            Message={
+                "Subject": {"Data": build_notification_subject(payload)},
+                "Body": {"Text": {"Data": build_notification_message(payload)}},
+            },
+        )
+
+    return sender
+
+
+def build_sns_sender(*, sns_client: Any, topic_arn: str, subject_prefix: Optional[str] = None) -> Callable[[Dict[str, Optional[str]]], None]:
+    def sender(payload: Dict[str, Optional[str]]) -> None:
+        subject = build_notification_subject(payload)
+        if subject_prefix:
+            subject = f"{subject_prefix} {subject}"
+        sns_client.publish(
+            TopicArn=topic_arn,
+            Subject=subject[:100],
+            Message=build_notification_message(payload),
+        )
+
+    return sender
 
 
 class NotificationClient:

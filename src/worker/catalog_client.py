@@ -25,12 +25,26 @@ class ProductLookupResult:
 
 
 class MagentoCatalogClient:
-    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 30):
+    def __init__(
+        self,
+        session: Optional[requests.Session] = None,
+        timeout: int = 30,
+        base_url: Optional[str] = None,
+        auth_headers: Optional[Dict[str, str]] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
         self._session = session or requests.Session()
         self._timeout = timeout
+        self._base_url = base_url.rstrip("/") if isinstance(base_url, str) and base_url.strip() else None
+        if auth_headers and hasattr(self._session, "headers"):
+            self._session.headers.update(auth_headers)
+        if username and password and hasattr(self._session, "auth"):
+            self._session.auth = (username, password)
 
     def build_search_url(self, site_configuration: SiteConfiguration, sku: str) -> str:
-        return f"{site_configuration.public_domain}{site_configuration.magento_product_lookup_route.format(sku=sku)}"
+        base_url = self._base_url or site_configuration.public_domain
+        return f"{base_url}{site_configuration.magento_product_lookup_route.format(sku=sku)}"
 
     def build_url_template(self, site_configuration: SiteConfiguration) -> str:
         return f"{site_configuration.public_domain}/{{url_key}}.html"

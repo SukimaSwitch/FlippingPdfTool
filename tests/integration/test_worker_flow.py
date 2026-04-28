@@ -275,6 +275,7 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
 
     def test_rejected_prefix_fails_before_processing(self) -> None:
         repository = InMemoryJobRepository()
+        notify_client = StubNotifyClient()
 
         result = process_worker_request(
             {
@@ -282,13 +283,17 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
                 "sourceBucket": "cmg-catalog-book",
                 "sourceKey": "input/unknown/sample.pdf",
                 "triggeredAt": "2026-04-28T12:00:00Z",
+                "notificationGroup": "catalog-ops@example.com",
             },
             job_repository=repository,
+            notify_client=notify_client,
         )
 
         self.assertEqual(result["routingStatus"], "rejected")
         self.assertEqual(result["failureStage"], "ingest-routing")
         self.assertEqual(len(repository.results), 0)
+        self.assertEqual(notify_client.payloads[0]["notificationType"], "failure")
+        self.assertEqual(notify_client.payloads[0]["failureStage"], "ingest-routing")
 
     def test_invalid_pdf_records_processing_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -298,23 +303,29 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
 
             storage_client = InMemoryStorageClient(input_pdf)
             repository = InMemoryJobRepository()
+            notify_client = StubNotifyClient()
             job = build_worker_job(
                 job_id="job-invalid-001",
                 source_bucket="cmg-catalog-book",
                 source_key="input/currentcatalog/bad.pdf",
                 triggered_at="2026-04-28T12:00:00Z",
+                notification_group="catalog-ops@example.com",
             )
 
             result = process_worker_job(
                 job,
                 storage_client=storage_client,
                 catalog_client=StubCatalogClient(),
+                notify_client=notify_client,
                 job_repository=repository,
                 workspace_dir=temp_path,
             )
 
             self.assertEqual(result.status, "failed")
             self.assertEqual(result.failure_stage, "processing")
+            self.assertEqual(notify_client.payloads[0]["notificationType"], "failure")
+            self.assertEqual(notify_client.payloads[0]["finalStatus"], "failed")
+            self.assertEqual(notify_client.payloads[0]["failureStage"], "processing")
 
     def test_publication_failure_preserves_output_and_records_partial_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
