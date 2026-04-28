@@ -88,6 +88,21 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
             "https://api.cmgdev.com/rest/currentcatalog/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]=123456&searchCriteria[filterGroups][0][filters][0][conditionType]=like",
         )
 
+    def test_build_catalog_client_prefers_explicit_bearer_token_secret(self) -> None:
+        env = {
+            "MAGENTO_SECRET_NAME": "flipping-pdf/magento",
+        }
+        secrets_client = FakeSecretsClient(
+            {
+                "flipping-pdf/magento": '{"host": "api.cmgdev.com", "bearer_token": "secret-token", "username": "user", "password": "pass"}',
+            }
+        )
+
+        client = _build_catalog_client_from_env(env, secrets_client=secrets_client)
+
+        self.assertEqual(client._session.headers["Authorization"], "Bearer secret-token")
+        self.assertIsNone(client._token_provider)
+
     def test_build_publish_client_returns_none_when_flipbook_secret_is_blank(self) -> None:
         env = {
             "FLIPBOOK_SECRET_NAME": "flipping-pdf/flipbook",

@@ -56,13 +56,13 @@ description: "Implementation tasks for automated PDF link publishing"
 ### Tests for User Story 1
 
 - [x] T011 [P] [US1] Add worker-contract assertions for exact SKU matching and unresolved `url_key` cases in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [x] T012 [P] [US1] Add Magento catalog-client unit coverage for exact matches, partial-only matches, and missing `url_key` responses in /home/xzhang/project/FlippingPdfTool/tests/unit/test_catalog_client.py
+- [x] T012 [P] [US1] Add Magento catalog-client unit coverage for admin-token authentication, exact matches, partial-only matches, and missing `url_key` responses in /home/xzhang/project/FlippingPdfTool/tests/unit/test_catalog_client.py
 - [x] T013 [P] [US1] Add accepted-route processing integration coverage for linked output, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
 
 ### Implementation for User Story 1
 
 - [x] T014 [P] [US1] Refactor the reusable PDF-linking pipeline entrypoint in /home/xzhang/project/FlippingPdfTool/src/main.py
-- [x] T015 [P] [US1] Implement Magento lookup, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in /home/xzhang/project/FlippingPdfTool/src/worker/catalog_client.py
+- [x] T015 [P] [US1] Implement Magento authentication, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in /home/xzhang/project/FlippingPdfTool/src/worker/catalog_client.py
 - [x] T016 [P] [US1] Implement source-download, output-upload, and artifact-prefix S3 helpers in /home/xzhang/project/FlippingPdfTool/src/worker/storage_client.py
 - [x] T017 [US1] Wire routed page processing, resolved-link creation, and unresolved-match capture in /home/xzhang/project/FlippingPdfTool/src/worker/pipeline_runner.py
 - [x] T018 [US1] Implement accepted-job worker execution and routed output handling in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
@@ -170,12 +170,12 @@ description: "Implementation tasks for automated PDF link publishing"
 ```bash
 # Cover the Magento semantics first
 Task: "T011 Add worker-contract assertions for exact SKU matching and unresolved `url_key` cases in tests/contract/test_workflow_contracts.py"
-Task: "T012 Add Magento catalog-client unit coverage for exact matches, partial-only matches, and missing `url_key` responses in tests/unit/test_catalog_client.py"
+Task: "T012 Add Magento catalog-client unit coverage for admin-token authentication, exact matches, partial-only matches, and missing `url_key` responses in tests/unit/test_catalog_client.py"
 Task: "T013 Add accepted-route processing integration coverage for linked output, unmatched SKUs, and unresolved matches in tests/integration/test_worker_flow.py"
 
 # Build the independent US1 adapters together
 Task: "T014 Refactor the reusable PDF-linking pipeline entrypoint in src/main.py"
-Task: "T015 Implement Magento lookup, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in src/worker/catalog_client.py"
+Task: "T015 Implement Magento authentication, exact-SKU filtering, `custom_attributes` parsing, and final URL construction in src/worker/catalog_client.py"
 Task: "T016 Implement source-download, output-upload, and artifact-prefix S3 helpers in src/worker/storage_client.py"
 ```
 

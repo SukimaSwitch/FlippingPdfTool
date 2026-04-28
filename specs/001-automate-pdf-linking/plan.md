@@ -5,12 +5,12 @@
 
 ## Summary
 
-Automate catalog PDF processing by routing uploads from `cmg-catalog-book/input/<site-prefix>/...` into a site-aware worker workflow that reuses the existing page-by-page PDF-linking pipeline, writes linked PDFs to `cmg-catalog-book/output/<site-prefix>/...`, publishes the linked artifact as a flipbook, and sends stakeholder notifications. Magento lookups remain site-specific and must use the store-code route, require an exact SKU match from the response, extract `url_key` from `custom_attributes`, and build the final customer URL as `https://<domain>/<url_key>.html`; exact matches without `url_key` stay unlinked and are recorded as unresolved matches.
+ Automate catalog PDF processing by routing uploads from `cmg-catalog-book/input/<site-prefix>/...` into a site-aware worker workflow that reuses the existing page-by-page PDF-linking pipeline, writes linked PDFs to `cmg-catalog-book/output/<site-prefix>/...`, publishes the linked artifact as a flipbook, and sends stakeholder notifications. Magento lookups remain site-specific and must authenticate first, either with a preissued bearer token or by exchanging configured username/password credentials through `POST /rest/V1/integration/admin/token`, then use the store-code product route, require an exact SKU match from the response, extract `url_key` from `custom_attributes`, and build the final customer URL as `https://<domain>/<url_key>.html`; exact matches without `url_key` stay unlinked and are recorded as unresolved matches.
 
 ## Technical Context
 
 **Language/Version**: Python 3.14 container runtime for the worker, with the existing Python CLI reused locally  
-**Primary Dependencies**: boto3, requests, PyMuPDF, Pillow, opencv-python-headless, numpy, AWS Textract integration, Step Functions/ECS adapters, SES or SNS notification adapter  
+ **Primary Dependencies**: boto3, requests, PyMuPDF, Pillow, opencv-python-headless, numpy, AWS Textract integration, Step Functions/ECS adapters, SES or SNS notification adapter, Magento admin-token exchange over XML login payloads  
 **Storage**: Amazon S3 for source/output/artifacts, DynamoDB for durable job state, Secrets Manager for third-party credentials, local ephemeral container storage for rendered/intermediate page files  
 **Testing**: Python `unittest` suite with unit, integration, and contract coverage  
 **Target Platform**: Linux container on ECS/Fargate, orchestrated by AWS Step Functions  
@@ -80,13 +80,13 @@ static/
 
 - Confirm the worker orchestration model for long-running PDFs.
 - Confirm the physical S3 bucket plus logical prefix layout implied by the spec.
-- Confirm the Magento URL-resolution rules: store-code route, exact SKU filtering, `url_key` extraction, final `.html` URL shape, and unresolved-match handling.
+- Confirm the Magento authentication and URL-resolution rules: admin-token exchange or bearer-token reuse, store-code route, exact SKU filtering, `url_key` extraction, final `.html` URL shape, and unresolved-match handling.
 - Confirm persistence and artifact-retention strategy for diagnosable partial failures.
 
 ## Phase 1: Design Focus
 
 - Model routing, processing, page-level diagnostics, resolved links, unresolved matches, publication artifacts, and notification outcomes.
-- Define the worker handoff/result contracts and document Magento resolution semantics that affect worker behavior.
+- Define the worker handoff/result contracts and document Magento authentication plus resolution semantics that affect worker behavior.
 - Capture an operator/developer quickstart that validates routing, worker execution, Magento URL generation, publication, and failure handling.
 - Refresh agent context after the design artifacts are updated.
 

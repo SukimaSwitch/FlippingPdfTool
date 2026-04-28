@@ -17,8 +17,8 @@ Suggested local environment variables for routed validation:
 - `AWS_REGION`
 - `DYNAMODB_TABLE_NAME`
 - `MAGENTO_SECRET_NAME`
-- `MAGENTO_SEARCH_BASE_URL`
-- `MAGENTO_BEARER_TOKEN_SECRET_NAME`
+- `MAGENTO_SEARCH_BASE_URL` only when you need to override the API host from the secret; do not point it at the storefront domain
+- `MAGENTO_BEARER_TOKEN_SECRET_NAME` for a preissued bearer token, or `MAGENTO_SECRET_NAME` fields `username` and `password` so the worker can mint an admin token
 - `FLIPBOOK_SECRET_NAME`
 - `FLIPBOOK_API_BASE_URL`
 - `FLIPBOOK_API_SECRET_NAME`
@@ -70,6 +70,7 @@ Test the catalog lookup adapter with representative Magento responses before run
 
 Required validation cases:
 
+- The worker authenticates to Magento before product search by either reusing a configured bearer token or exchanging `username` and `password` through `POST /rest/V1/integration/admin/token`.
 - The worker calls `GET /rest/<store_code>/V1/products?...conditionType=like` using the routed store code.
 - If the search response contains an item whose `sku` exactly equals the detected catalog SKU and that item has `custom_attributes[].attribute_code = url_key`, build the final link as `https://<domain>/<url_key>.html`.
 - If the response contains only partial or fuzzy SKU candidates, add no link and count the SKU as unmatched.
@@ -78,6 +79,7 @@ Required validation cases:
 
 Expected result:
 
+- Magento authentication succeeds before product search requests are issued.
 - Only exact SKU equality can produce a link.
 - Final URLs come from `url_key`, not directly from SKU.
 - Missing `url_key` does not fail the job.
@@ -94,6 +96,8 @@ Run the worker with routed environment variables.
 
 ```bash
 docker run --rm \
+  -e AWS_REGION=us-east-1 \
+  -e AWS_DEFAULT_REGION=us-east-1 \
   -e JOB_ID=test-job-001 \
   -e SOURCE_BUCKET=cmg-catalog-book \
   -e SOURCE_KEY=input/currentcatalog/sample-catalog.pdf \
@@ -104,12 +108,33 @@ docker run --rm \
   -e MAGENTO_STORE_CODE=currentcatalog \
   -e DYNAMODB_TABLE_NAME=ProcessingJobs \
   -e MAGENTO_SECRET_NAME=flipping-pdf/magento \
-  -e MAGENTO_SEARCH_BASE_URL=https://www.currentcatalog.com \
+  -v "$HOME/.aws:/home/appuser/.aws:ro" \
   -e FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook \
   -e NOTIFICATION_MODE=ses \
   -e NOTIFICATION_SECRET_NAME=flipping-pdf/notifications \
   flipping-pdf-worker
 ```
+
+Expected Magento secret shape for username/password authentication:
+
+```json
+{
+  "host": "https://api.cmgdev.com",
+  "username": "<magento-admin-username>",
+  "password": "<magento-admin-password>"
+}
+```
+
+Alternative Magento secret shape when a bearer token is already issued:
+
+```json
+{
+  "host": "https://api.cmgdev.com",
+  "bearer_token": "<preissued-access-token>"
+}
+```
+
+If `MAGENTO_SEARCH_BASE_URL` is set, it must also be the Magento API host, not the public storefront domain. The storefront domain still comes from routing and is used only for the final customer-facing product URL.
 
 Optional direct Python validation path:
 
@@ -131,6 +156,7 @@ print(result)
 Expected result:
 
 - The worker downloads the source PDF from S3.
+- Magento authentication succeeds through the configured bearer token or the admin-token exchange.
 - Magento lookups use the routed store code.
 - Exact-match products with `url_key` produce `https://<domain>/<url_key>.html` links.
 - Exact-match products without `url_key` remain unlinked and are recorded as unresolved.
@@ -143,6 +169,7 @@ Staging recommendation when flipbook credentials are still blank:
 - Treat flipbook publication as intentionally unavailable until the flipbook secret contains both a URL and API key.
 - Do not use staging success notifications as proof of production readiness until a real delivery adapter and sender configuration are verified.
 - A notification secret containing only `recipient` is not enough for SES delivery; add `source` or supply `NOTIFICATION_SOURCE`, or switch staging to SNS with a real topic ARN.
+- A Magento secret that omits both `bearer_token` and `username` plus `password` is not enough for live product lookup validation.
 - Rejected-routing and processing failures can now exercise real failure notifications in staging even before flipbook publication is enabled.
 
 ## 5. Exercise orchestration, publication, and notification

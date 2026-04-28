@@ -152,7 +152,7 @@ Suggested secrets:
 
 Examples of what they may contain:
 
-- Magento base URL, username, password, token, or API key
+- Magento base URL plus either a preissued bearer token or a username/password pair that can exchange `POST /rest/V1/integration/admin/token` for an access token
 - Flipbook API URL and credentials
 - Notification configuration such as recipient group or service token
 

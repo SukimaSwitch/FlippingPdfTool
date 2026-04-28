@@ -16,6 +16,7 @@
 - Q: How should the URL builder derive the final product page URL from the Magento product response? -> A: Search products through the Magento API, read the `url_key` value from `custom_attributes`, and build the product URL as `https://<domain>/<url_key>.html`.
 - Q: How should Magento SKU search results be matched when multiple or partial candidates are returned? -> A: Use only an exact SKU match after the Magento search; if no exact match exists, leave the item unlinked.
 - Q: How should the workflow handle an exact-match Magento product that does not include a `url_key` attribute? -> A: Leave the item unlinked and record it as an unresolved product match.
+- Q: How should the worker authenticate to Magento before product lookup requests? -> A: If a preissued bearer token is not supplied, exchange the configured Magento username and password through `POST /rest/V1/integration/admin/token`, then reuse that bearer token for subsequent product search requests.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -88,6 +89,8 @@ As a support or operations user, I want failures and partial results to be recor
 - **FR-003**: The system MUST process the PDF one page at a time and evaluate every page for product figures and related descriptive text.
 - **FR-004**: The system MUST derive candidate product identifiers from page content and use the detected SKU value to search the configured product catalog source for a destination product URL.
 - **FR-004a**: The site configuration mappings MUST be: `currentcatalog/` -> domain `https://www.currentcatalog.com`, store code `currentcatalog`; `colorfulimages/` -> domain `https://www.colorfulimages.com`, store code `colorfulimages`; `lillianvernon/` -> domain `https://www.lillianvernon.com`, store code `lillianvernon`.
+- **FR-004aa**: Before issuing Magento product search requests, the system MUST authenticate with Magento using one of these methods: a preissued bearer token from configuration, or an admin-token exchange through `POST /rest/V1/integration/admin/token` using the configured Magento username and password.
+- **FR-004ab**: When username/password authentication is used, the admin-token exchange request MUST send XML login payload data and reuse the returned bearer token for subsequent product search requests within the same worker execution.
 - **FR-004b**: Product lookup requests to Magento MUST use the site-specific store code in the route `GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]=<SKU>&searchCriteria[filterGroups][0][filters][0][conditionType]=like`.
 - **FR-004c**: When Magento returns a matching product, the system MUST inspect the product `custom_attributes` array, find the `url_key` attribute, and treat its `value` as the canonical page slug for link generation.
 - **FR-004d**: The final product URL MUST be constructed as `https://<domain>/<url_key>.html`, where `<domain>` comes from the site configuration mapping and `<url_key>` comes from the Magento product response.
@@ -138,6 +141,7 @@ As a support or operations user, I want failures and partial results to be recor
 - The existing catalog-linking logic remains the authoritative basis for page rendering, content extraction, SKU detection, and link placement behavior.
 - Uploaded files in scope are catalog PDFs only; non-PDF assets are out of scope for this feature.
 - The product catalog source supports SKU-based search and returns product URL information when a matching product exists.
+- Magento authentication credentials are available either as a reusable bearer token or as a username/password pair that is authorized to mint an admin access token.
 - Magento SKU search may return partial matches, so link generation relies on validating an exact SKU match in the response before using any returned product data.
 - For in-scope Magento responses, the canonical product page slug is supplied as the `url_key` entry inside `custom_attributes`, and the final customer-facing URL is derived by combining that slug with the site-specific domain and the `.html` suffix.
 - If an exact-match Magento product omits `url_key`, the workflow records that condition for follow-up and does not fail the full PDF job solely because of that missing field.

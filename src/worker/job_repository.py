@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict, Optional, Protocol, Union
 
 import boto3
@@ -37,6 +38,8 @@ def _prune_none_values(item: Dict[str, Any]) -> Dict[str, Any]:
 def _normalize_value(value: Any) -> Any:
     if isinstance(value, datetime):
         return value.isoformat()
+    if isinstance(value, float):
+        return Decimal(str(value))
     if is_dataclass(value):
         return _normalize_value(asdict(value))
     if isinstance(value, dict):

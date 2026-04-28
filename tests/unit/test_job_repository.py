@@ -1,5 +1,6 @@
 import unittest
 from copy import deepcopy
+from decimal import Decimal
 
 from src.worker.job_repository import JobRepository
 from src.worker.models import PersistedPageArtifacts, SourceDocument, WorkerResult
@@ -197,6 +198,8 @@ class JobRepositoryTests(unittest.TestCase):
         self.assertEqual(item["unmatchedSkus"][0]["sku"], "66773")
         self.assertEqual(item["unresolvedMatches"][0]["matchedSku"], "88442")
         self.assertEqual(item["unresolvedMatches"][0]["reason"], "missing_url_key")
+        self.assertIsInstance(item["productMatches"][0]["figureBbox"]["Left"], Decimal)
+        self.assertIsInstance(item["unresolvedMatches"][0]["figureBbox"]["Top"], Decimal)
 
     def test_persisted_page_artifacts_model_normalizes_page_summaries(self) -> None:
         artifacts = PersistedPageArtifacts.from_page_summaries(
