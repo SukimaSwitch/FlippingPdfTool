@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -19,3 +20,24 @@ class S3StorageClient:
 
     def upload_file(self, *, source_path: Path, bucket: str, key: str) -> None:
         self._client.upload_file(str(source_path), bucket, key)
+
+    def persist_artifact_metadata(
+        self,
+        *,
+        bucket: str,
+        artifact_prefix: str,
+        artifacts: list[dict],
+        retention_days: int,
+    ) -> None:
+        self._client.put_object(
+            Bucket=bucket,
+            Key=f"{artifact_prefix.rstrip('/')}/retention.json",
+            Body=json.dumps(
+                {
+                    "artifactPrefix": artifact_prefix,
+                    "retentionDays": retention_days,
+                    "artifacts": artifacts,
+                }
+            ).encode("utf-8"),
+            ContentType="application/json",
+        )

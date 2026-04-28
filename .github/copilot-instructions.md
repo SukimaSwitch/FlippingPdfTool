@@ -23,6 +23,8 @@
 ## Active Technologies
 - Python 3.14 container runtime for the worker and helper entrypoints + boto3, requests, PyMuPDF, Pillow, OpenCV, NumPy, AWS Textract, AWS Step Functions, ECS/Fargate, SES or SNS, Secrets Manager (001-automate-pdf-linking)
 - Amazon S3 for source/output PDFs and processing artifacts, DynamoDB for durable processing-job state, local ephemeral container storage for intermediate page images (001-automate-pdf-linking)
+- Python 3.14 container runtime for the worker, with the existing Python CLI reused locally + boto3, requests, PyMuPDF, Pillow, opencv-python-headless, numpy, AWS Textract integration, Step Functions/ECS adapters, SES or SNS notification adapter (001-automate-pdf-linking)
+- Amazon S3 for source/output/artifacts, DynamoDB for durable job state, Secrets Manager for third-party credentials, local ephemeral container storage for rendered/intermediate page files (001-automate-pdf-linking)
 
 ## Recent Changes
 - 001-automate-pdf-linking: Added Python 3.14 container runtime for the worker and helper entrypoints + boto3, requests, PyMuPDF, Pillow, OpenCV, NumPy, AWS Textract, AWS Step Functions, ECS/Fargate, SES or SNS, Secrets Manager

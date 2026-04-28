@@ -1,13 +1,61 @@
 import unittest
 from tempfile import NamedTemporaryFile
+from pathlib import Path
 
 import fitz
 
-from src.main import CandidateBlock, build_url_template, extract_sku, match_figures_to_descriptions, resolve_page_indexes
+from src.main import CandidateBlock, build_pipeline_args, build_url_template, extract_sku, match_figures_to_descriptions, resolve_page_indexes
 from src.main import FigureMatch, add_links_to_pdf, build_text_candidates, match_to_payload, payload_to_match, resolve_sku_text
+from src.worker.pipeline_runner import run_worker_pipeline
+from src.worker.routing import build_worker_job
 
 
 class MainPipelineTests(unittest.TestCase):
+    def test_build_pipeline_args_applies_overrides_for_reusable_entrypoint(self) -> None:
+        args = build_pipeline_args(
+            pdf="/tmp/sample.pdf",
+            domain="https://www.colorfulimages.com",
+            output_dir="/tmp/output",
+            figure_info_dir="/tmp/info",
+            skip_existing=True,
+            max_pages=5,
+        )
+
+        self.assertEqual(args.pdf, "/tmp/sample.pdf")
+        self.assertEqual(args.domain, "https://www.colorfulimages.com")
+        self.assertEqual(args.output_dir, "/tmp/output")
+        self.assertEqual(args.figure_info_dir, "/tmp/info")
+        self.assertTrue(args.skip_existing)
+        self.assertEqual(args.max_pages, 5)
+
+    def test_run_worker_pipeline_reuses_cli_pipeline_options(self) -> None:
+        job = build_worker_job(
+            job_id="job-main-001",
+            source_bucket="cmg-catalog-book",
+            source_key="input/currentcatalog/sample.pdf",
+            triggered_at="2026-04-28T12:00:00Z",
+        )
+        captured = {}
+
+        def fake_pipeline_callable(**options):
+            captured.update(options)
+            return {"output_pdf": "/tmp/linked_sample.pdf"}
+
+        result = run_worker_pipeline(
+            job=job,
+            source_pdf_path=Path("/tmp/source/sample.pdf"),
+            workspace_dir=Path("/tmp/worker-workspace"),
+            url_template="https://www.currentcatalog.com/sku/{sku}",
+            pipeline_callable=fake_pipeline_callable,
+        )
+
+        self.assertEqual(result["output_pdf"], "/tmp/linked_sample.pdf")
+        self.assertEqual(captured["pdf"], "/tmp/source/sample.pdf")
+        self.assertEqual(captured["domain"], "https://www.currentcatalog.com")
+        self.assertEqual(captured["output_dir"], "/tmp/worker-workspace/extracted_images")
+        self.assertEqual(captured["figure_info_dir"], "/tmp/worker-workspace/figure_info")
+        self.assertEqual(captured["url_template"], "https://www.currentcatalog.com/sku/{sku}")
+
     def test_build_url_template_from_domain(self) -> None:
         self.assertEqual(
             build_url_template("www.lillianvernon.com", None),

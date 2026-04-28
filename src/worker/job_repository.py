@@ -210,6 +210,68 @@ class JobRepository:
             },
         )
 
+    def record_publication_result(
+        self,
+        *,
+        job_id: str,
+        flipbook_url: str,
+        recorded_at: TimestampLike,
+    ) -> Dict[str, Any]:
+        return self._merge_job(
+            job_id,
+            {
+                "currentStage": "flipbook-publish",
+                "publicationStatus": "published",
+                "flipbookUrl": flipbook_url,
+                "updatedAt": _as_iso8601(recorded_at),
+            },
+        )
+
+    def record_notification_result(
+        self,
+        *,
+        job_id: str,
+        notification_payload: Dict[str, Any],
+        recorded_at: TimestampLike,
+    ) -> Dict[str, Any]:
+        notifications = self.get_job(job_id).get("notifications", []) if self.get_job(job_id) else []
+        notifications.append(notification_payload)
+        return self._merge_job(
+            job_id,
+            {
+                "currentStage": "notification",
+                "status": "completed",
+                "notifications": notifications,
+                "updatedAt": _as_iso8601(recorded_at),
+                "completedAt": _as_iso8601(recorded_at),
+            },
+        )
+
+    def record_terminal_summary(
+        self,
+        *,
+        job_id: str,
+        final_status: str,
+        recorded_at: TimestampLike,
+        failure_stage: Optional[str] = None,
+        failure_code: Optional[str] = None,
+        failure_message: Optional[str] = None,
+        dedupe_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._merge_job(
+            job_id,
+            {
+                "status": final_status,
+                "finalStatus": final_status,
+                "failureStage": failure_stage,
+                "failureCode": failure_code,
+                "failureMessage": failure_message,
+                "dedupeKey": dedupe_key,
+                "updatedAt": _as_iso8601(recorded_at),
+                "completedAt": _as_iso8601(recorded_at),
+            },
+        )
+
     def _merge_job(self, job_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         item = self.get_job(job_id)
         if item is None:

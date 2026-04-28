@@ -72,6 +72,10 @@
       "type": "integer",
       "minimum": 0
     },
+    "unresolvedMatchCount": {
+      "type": "integer",
+      "minimum": 0
+    },
     "linkCount": {
       "type": "integer",
       "minimum": 0
@@ -94,6 +98,7 @@
           "pageCount",
           "matchedSkuCount",
           "unmatchedSkuCount",
+          "unresolvedMatchCount",
           "linkCount"
         ]
       }

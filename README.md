@@ -16,7 +16,7 @@ For the planned cloud workflow, see `specs/001-automate-pdf-linking/aws-beginner
 
 ## Worker Runtime Prerequisites
 
-The planned cloud workflow runs the PDF-linking pipeline inside an ECS Fargate worker coordinated by AWS Step Functions.
+The cloud workflow runs the PDF-linking pipeline inside an ECS Fargate worker coordinated by AWS Step Functions.
 
 Minimum AWS prerequisites:
 
@@ -69,6 +69,34 @@ docker run --rm \
   -e AWS_REGION=us-east-1 \
   flipping-pdf-worker
 ```
+
+## Local Worker Validation
+
+The worker orchestration can also be exercised directly from Python without deploying AWS infrastructure.
+
+Example routed worker payload:
+
+```python
+from src.worker.entrypoint import process_worker_request
+
+payload = {
+    "jobId": "test-job-001",
+    "sourceBucket": "cmg-catalog-book",
+    "sourceKey": "input/currentcatalog/sample-catalog.pdf",
+    "triggeredAt": "2026-04-28T12:00:00Z",
+    "notificationGroup": "catalog-ops@example.com",
+}
+
+result = process_worker_request(payload)
+print(result)
+```
+
+Expected behavior:
+
+- Accepted prefixes route to the matching `output/<site-prefix>/...` key.
+- Unknown prefixes fail before PDF processing starts.
+- Publication and notification stages run only when those clients are configured or injected.
+- Partial-success outcomes preserve the linked PDF and record the failed downstream stage.
 
 ## Usage
 
@@ -129,3 +157,17 @@ Each run creates a unique subdirectory under `extracted_images/` and `figure_inf
 - If Textract does not return figure blocks for a page, the script falls back to OpenCV-based image region detection.
 - Textract calls are retried automatically up to the configured retry limit.
 - The terminal prints a live page progress bar with cumulative match and link counts.
+
+## Validation Status
+
+Latest local validation on 2026-04-28:
+
+- `python -m unittest tests.test_main -v`
+- `python -m unittest discover -s tests -v`
+
+Current validated coverage includes:
+
+- Shared CLI and worker pipeline reuse
+- Accepted-route processing and matched output routing
+- Publication and success notification flow
+- Rejected-prefix, invalid-PDF, publication-failure, and notification-failure handling
