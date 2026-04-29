@@ -112,7 +112,7 @@ Expected behavior:
 
 - Accepted prefixes route to the matching `output/<site-prefix>/...` key.
 - Unknown prefixes fail before PDF processing starts.
-- Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` as `https://<domain>/<url_key>.html`.
+- Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` using the routed storefront template: `currentcatalog` and `colorfulimages` use `https://<domain>/buy/<url_key>.html`, while `lillianvernon` uses `https://<domain>/goods/<url_key>.html`.
 - Exact SKU matches without `url_key` remain unlinked and are recorded as unresolved matches.
 - The container runtime can now bootstrap worker jobs directly from environment variables and Secrets Manager when launched with `python -m src.worker.entrypoint`.
 - Publication and notification stages run only when those clients are configured or injected.
@@ -124,7 +124,7 @@ Staging note:
 - If the flipbook secret is blank, routed linking and artifact persistence can still be staged, but a full success-path publication check is not possible yet.
 - A notification recipient secret provides the target address only; actual SES or SNS delivery still depends on a real sender or topic configuration in the deployed environment.
 - For SES delivery, the runtime now fails fast unless it can resolve a sender email from `NOTIFICATION_SOURCE` or `NOTIFICATION_SECRET_NAME.source`.
-- Success notifications still depend on publication success, so they remain unavailable while the flipbook secret is blank.
+- Success notifications still depend on publication success, so they remain unavailable until the flipbook secret and notification secret are updated with live environment values.
 
 ## Usage
 

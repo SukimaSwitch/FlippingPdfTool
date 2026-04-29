@@ -158,7 +158,7 @@ Expected result:
 - The worker downloads the source PDF from S3.
 - Magento authentication succeeds through the configured bearer token or the admin-token exchange.
 - Magento lookups use the routed store code.
-- Exact-match products with `url_key` produce `https://<domain>/<url_key>.html` links.
+- Exact-match products with `url_key` produce site-specific customer URLs: `currentcatalog` and `colorfulimages` use `/buy/<url_key>.html`, and `lillianvernon` uses `/goods/<url_key>.html`.
 - Exact-match products without `url_key` remain unlinked and are recorded as unresolved.
 - The worker writes the linked PDF to the same bucket under the routed `output/<site-prefix>/...` key.
 - The worker uploads the linked PDF and diagnostic artifacts and emits a structured processing result.
@@ -167,7 +167,7 @@ Staging recommendation when flipbook credentials are still blank:
 
 - Proceed with staged worker deployment for ingest-routing, PDF linking, S3 output, DynamoDB persistence, and artifact retention.
 - Treat flipbook publication as intentionally unavailable until the flipbook secret contains both a URL and API key.
-- Do not use staging success notifications as proof of production readiness until a real delivery adapter and sender configuration are verified.
+- Do not use staging success notifications as proof of production readiness until the flipbook secret and notification secret are updated with real live-environment values.
 - A notification secret containing only `recipient` is not enough for SES delivery; add `source` or supply `NOTIFICATION_SOURCE`, or switch staging to SNS with a real topic ARN.
 - A Magento secret that omits both `bearer_token` and `username` plus `password` is not enough for live product lookup validation.
 - Rejected-routing and processing failures can now exercise real failure notifications in staging even before flipbook publication is enabled.

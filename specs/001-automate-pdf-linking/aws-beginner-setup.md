@@ -300,7 +300,7 @@ For a beginner setup, EventBridge is often easier to inspect and debug.
 
 ## Step 12: Build and Push the Worker Container
 
-This repository does not yet contain the full worker implementation or Dockerfile for the planned cloud worker. Once that exists, the build-and-push flow will look like this:
+This repository now contains the worker implementation and Dockerfile needed for the ECS task image. If your AWS baseline is already provisioned manually, this step is the handoff from local validation to the deployed worker image:
 
 ```bash
 aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
@@ -309,7 +309,7 @@ docker tag flipping-pdf-worker:latest <account-id>.dkr.ecr.<region>.amazonaws.co
 docker push <account-id>.dkr.ecr.<region>.amazonaws.com/flipping-pdf-worker:latest
 ```
 
-At the moment, treat this step as planned infrastructure wiring rather than something this branch can complete end to end.
+Use the pushed image tag in the existing ECS task definition and Step Functions workflow input path.
 
 ## Step 13: Configure Local AWS Credentials for Testing
 
@@ -352,7 +352,7 @@ Expected result:
 
 ## Step 15: Test One Upload Path in AWS
 
-Once the worker code and infrastructure are in place, test the smallest happy path first.
+Once the worker image is pushed and your existing AWS resources are wired to it, test the smallest happy path first.
 
 Upload a sample PDF to:
 
@@ -388,18 +388,17 @@ These names are reasonable starting points:
 
 ## What Is Not Finished Yet in This Branch
 
-This guide is aligned to the design, but the following implementation pieces are still planned work in this branch:
+The worker implementation is present and locally validated, but these deployment-support pieces are still intentionally incomplete in the repository:
 
-- worker package under `src/worker/`
-- worker Dockerfile
 - Step Functions orchestration code or infrastructure-as-code
-- publication and notification clients
-- durable job repository implementation
+- reproducible infrastructure definitions for the manually provisioned AWS resources
+- final live secret values for flipbook publication and notification delivery
 
-That means this document is a deployment roadmap and onboarding asset, not proof that the branch is already deployable.
+That means this document can support deployment into the current manually provisioned AWS environment, but the repository is not yet a full infrastructure-from-source deployment package.
 
 ## Recommended Next Steps
 
-1. Finish the Phase 1 and Phase 2 implementation tasks in the feature spec.
-2. Add infrastructure as code so the AWS setup is reproducible.
-3. Start with one supported site prefix and one sample PDF before expanding the workflow.
+1. Push the validated worker image to ECR and update the existing ECS task definition to use that image tag.
+2. Test one supported site prefix and one sample PDF in AWS before enabling broader traffic.
+3. Replace flipbook and notification secret values with live environment values, then validate publication and delivery separately from the core worker path.
+4. Add infrastructure as code later so the AWS setup is reproducible.
