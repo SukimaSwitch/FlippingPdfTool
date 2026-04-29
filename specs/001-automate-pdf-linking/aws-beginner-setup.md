@@ -2,6 +2,8 @@
 
 This guide turns the planned AWS architecture for FlippingPdfTool into a beginner-friendly setup sequence. It is based on the workflow design in this feature branch, not on a fully deployed implementation. Some application pieces are still planned work, but this document shows how the AWS side is expected to fit together.
 
+For a deployment-readiness gate before the first live upload test, use [checklists/aws-deployment-preflight.md](./checklists/aws-deployment-preflight.md).
+
 ## Provisioned AWS Baseline
 
 The following AWS prerequisites were provisioned for this feature branch on 2026-04-27 and can be treated as the current environment baseline for implementation and validation.

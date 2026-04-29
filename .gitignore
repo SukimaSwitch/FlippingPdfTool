@@ -25,3 +25,5 @@ figure_info/
 .github/
 .specify/
 .vscode/
+aws/
+awscliv2.zip
