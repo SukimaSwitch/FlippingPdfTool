@@ -8,6 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional
+from urllib.parse import unquote_plus
 
 import boto3
 
@@ -72,6 +73,10 @@ def _required_env(env: Mapping[str, str], name: str) -> str:
     return value
 
 
+def _normalize_source_key(source_key: str) -> str:
+    return unquote_plus(source_key)
+
+
 def _build_job_payload_from_env(
     env: Mapping[str, str],
     *,
@@ -84,7 +89,7 @@ def _build_job_payload_from_env(
     payload: Dict[str, Any] = {
         "jobId": _required_env(env, "JOB_ID"),
         "sourceBucket": _required_env(env, "SOURCE_BUCKET"),
-        "sourceKey": _required_env(env, "SOURCE_KEY"),
+        "sourceKey": _normalize_source_key(_required_env(env, "SOURCE_KEY")),
         "triggeredAt": env.get("TRIGGERED_AT") or now_fn(),
     }
     if notification_group:
@@ -188,51 +193,57 @@ def process_worker_request(
     pipeline_runner: Callable[..., Dict[str, Any]] = run_worker_pipeline,
     workspace_dir: Optional[Path] = None,
 ) -> Any:
+    normalized_payload = dict(payload)
+    normalized_payload["sourceKey"] = _normalize_source_key(payload["sourceKey"])
     repository = job_repository or JobRepository("ProcessingJobs")
     notifier = notify_client or NotificationClient()
-    dedupe_key = _dedupe_key(payload["sourceBucket"], payload["sourceKey"], payload.get("correlationId"))
+    dedupe_key = _dedupe_key(
+        normalized_payload["sourceBucket"],
+        normalized_payload["sourceKey"],
+        normalized_payload.get("correlationId"),
+    )
     decision = route_source_object(
-        job_id=payload["jobId"],
-        source_bucket=payload["sourceBucket"],
-        source_key=payload["sourceKey"],
+        job_id=normalized_payload["jobId"],
+        source_bucket=normalized_payload["sourceBucket"],
+        source_key=normalized_payload["sourceKey"],
     )
     if isinstance(decision, RejectedRouting):
         repository.record_routing_rejection(
-            job_id=payload["jobId"],
-            source_bucket=payload["sourceBucket"],
-            source_key=payload["sourceKey"],
+            job_id=normalized_payload["jobId"],
+            source_bucket=normalized_payload["sourceBucket"],
+            source_key=normalized_payload["sourceKey"],
             decision=decision,
-            triggered_at=payload["triggeredAt"],
+            triggered_at=normalized_payload["triggeredAt"],
             dedupe_key=dedupe_key,
         )
-        if payload.get("notificationGroup"):
+        if normalized_payload.get("notificationGroup"):
             notification_payload = notifier.send_failure_notification(
-                job_id=payload["jobId"],
-                recipient_group=payload["notificationGroup"],
+                job_id=normalized_payload["jobId"],
+                recipient_group=normalized_payload["notificationGroup"],
                 site_prefix="unknown",
-                filename=payload["sourceKey"].rsplit("/", 1)[-1],
+                filename=normalized_payload["sourceKey"].rsplit("/", 1)[-1],
                 final_status="failed",
                 failure_stage=decision.failure_stage,
                 failure_message=decision.failure_message,
                 flipbook_url=None,
             )
             repository.record_notification_result(
-                job_id=payload["jobId"],
+                job_id=normalized_payload["jobId"],
                 notification_payload=notification_payload,
                 recorded_at=_utc_now(),
             )
         return decision.to_dict()
 
     job = build_worker_job(
-        job_id=payload["jobId"],
-        source_bucket=payload["sourceBucket"],
-        source_key=payload["sourceKey"],
-        triggered_at=payload["triggeredAt"],
-        artifact_bucket=payload.get("artifactBucket"),
-        correlation_id=payload.get("correlationId"),
-        requested_by=payload.get("requestedBy"),
-        notification_group=payload.get("notificationGroup"),
-        flipbook_profile=payload.get("flipbookProfile"),
+        job_id=normalized_payload["jobId"],
+        source_bucket=normalized_payload["sourceBucket"],
+        source_key=normalized_payload["sourceKey"],
+        triggered_at=normalized_payload["triggeredAt"],
+        artifact_bucket=normalized_payload.get("artifactBucket"),
+        correlation_id=normalized_payload.get("correlationId"),
+        requested_by=normalized_payload.get("requestedBy"),
+        notification_group=normalized_payload.get("notificationGroup"),
+        flipbook_profile=normalized_payload.get("flipbookProfile"),
     )
     return process_worker_job(
         job,
@@ -324,73 +335,101 @@ def process_worker_job(
             retention_days=30,
         )
 
-        if publish_client is not None:
-            try:
-                publication = publish_client.publish_pdf(
+        if publish_client is None:
+            failure_message = "Flipbook publication is not configured for this worker run."
+            if job.notification_group:
+                notification_payload = notifier.send_failure_notification(
                     job_id=job.job_id,
+                    recipient_group=job.notification_group,
                     site_prefix=job.site_configuration.site_prefix,
-                    pdf_bucket=job.output_bucket,
-                    pdf_key=job.output_key,
                     filename=job.filename,
+                    final_status="partial-success",
+                    failure_stage="publication",
+                    failure_message=failure_message,
+                    flipbook_url=None,
                 )
-                repository.record_publication_result(
+                repository.record_notification_result(
                     job_id=job.job_id,
+                    notification_payload=notification_payload,
+                    recorded_at=_utc_now(),
+                )
+            repository.record_terminal_summary(
+                job_id=job.job_id,
+                final_status="partial-success",
+                failure_stage="publication",
+                failure_code="publication-not-configured",
+                failure_message=failure_message,
+                dedupe_key=dedupe_key,
+                recorded_at=_utc_now(),
+            )
+            return result
+
+        try:
+            publication = publish_client.publish_pdf(
+                job_id=job.job_id,
+                site_prefix=job.site_configuration.site_prefix,
+                pdf_bucket=job.output_bucket,
+                pdf_key=job.output_key,
+                filename=job.filename,
+            )
+            repository.record_publication_result(
+                job_id=job.job_id,
+                flipbook_url=publication["flipbookUrl"],
+                recorded_at=_utc_now(),
+            )
+        except Exception as exc:
+            if job.notification_group:
+                notification_payload = notifier.send_failure_notification(
+                    job_id=job.job_id,
+                    recipient_group=job.notification_group,
+                    site_prefix=job.site_configuration.site_prefix,
+                    filename=job.filename,
+                    final_status="partial-success",
+                    failure_stage="publication",
+                    failure_message=str(exc),
+                    flipbook_url=None,
+                )
+                repository.record_notification_result(
+                    job_id=job.job_id,
+                    notification_payload=notification_payload,
+                    recorded_at=_utc_now(),
+                )
+            repository.record_terminal_summary(
+                job_id=job.job_id,
+                final_status="partial-success",
+                failure_stage="publication",
+                failure_code="publication-failed",
+                failure_message=str(exc),
+                dedupe_key=dedupe_key,
+                recorded_at=_utc_now(),
+            )
+            return result
+
+        if job.notification_group:
+            try:
+                notification_payload = notifier.send_success_notification(
+                    job_id=job.job_id,
+                    recipient_group=job.notification_group,
+                    site_prefix=job.site_configuration.site_prefix,
+                    filename=job.filename,
                     flipbook_url=publication["flipbookUrl"],
+                )
+                repository.record_notification_result(
+                    job_id=job.job_id,
+                    notification_payload=notification_payload,
                     recorded_at=_utc_now(),
                 )
             except Exception as exc:
-                if job.notification_group:
-                    notification_payload = notifier.send_failure_notification(
-                        job_id=job.job_id,
-                        recipient_group=job.notification_group,
-                        site_prefix=job.site_configuration.site_prefix,
-                        filename=job.filename,
-                        final_status="partial-success",
-                        failure_stage="publication",
-                        failure_message=str(exc),
-                        flipbook_url=None,
-                    )
-                    repository.record_notification_result(
-                        job_id=job.job_id,
-                        notification_payload=notification_payload,
-                        recorded_at=_utc_now(),
-                    )
                 repository.record_terminal_summary(
                     job_id=job.job_id,
                     final_status="partial-success",
-                    failure_stage="publication",
-                    failure_code="publication-failed",
+                    failure_stage="notification",
+                    failure_code="notification-failed",
                     failure_message=str(exc),
                     dedupe_key=dedupe_key,
                     recorded_at=_utc_now(),
                 )
                 return result
-
-            if job.notification_group:
-                try:
-                    notification_payload = notifier.send_success_notification(
-                        job_id=job.job_id,
-                        recipient_group=job.notification_group,
-                        site_prefix=job.site_configuration.site_prefix,
-                        filename=job.filename,
-                        flipbook_url=publication["flipbookUrl"],
-                    )
-                    repository.record_notification_result(
-                        job_id=job.job_id,
-                        notification_payload=notification_payload,
-                        recorded_at=_utc_now(),
-                    )
-                except Exception as exc:
-                    repository.record_terminal_summary(
-                        job_id=job.job_id,
-                        final_status="partial-success",
-                        failure_stage="notification",
-                        failure_code="notification-failed",
-                        failure_message=str(exc),
-                        dedupe_key=dedupe_key,
-                        recorded_at=_utc_now(),
-                    )
-                    return result
         return result
     except Exception as exc:
         failed_stage = "processing" if worker_run_id is not None else "download"

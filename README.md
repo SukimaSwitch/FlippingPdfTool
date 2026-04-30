@@ -4,7 +4,7 @@ A Python CLI application that renders catalog PDFs to JPG, identifies product fi
 
 The pipeline now processes one page at a time, prints a live progress bar in the terminal, and can resume previously completed pages from saved page summaries.
 
-For the planned cloud workflow, see `specs/001-automate-pdf-linking/aws-beginner-setup.md` for a beginner-friendly AWS setup guide.
+For the cloud workflow, see `specs/001-automate-pdf-linking/aws-beginner-setup.md` for the operator guide and `aws/templates/` for the checked-in task definition, Step Functions, and EventBridge templates.
 
 ## Installation
 
@@ -32,7 +32,7 @@ Required third-party configuration:
 - Flipbook API credentials and target publication settings.
 - A notification target using SES or SNS plus the stakeholder email group or topic mapping.
 
-For a guided setup, see `specs/001-automate-pdf-linking/aws-beginner-setup.md`.
+For a guided setup, see `specs/001-automate-pdf-linking/aws-beginner-setup.md`. For deployable AWS artifacts, see `aws/templates/README.md`.
 
 ## Worker Environment Variables
 
@@ -115,13 +115,14 @@ Expected behavior:
 - Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` using the routed storefront template: `currentcatalog` and `colorfulimages` use `https://<domain>/buy/<url_key>.html`, while `lillianvernon` uses `https://<domain>/goods/<url_key>.html`.
 - Exact SKU matches without `url_key` remain unlinked and are recorded as unresolved matches.
 - The container runtime can now bootstrap worker jobs directly from environment variables and Secrets Manager when launched with `python -m src.worker.entrypoint`.
-- Publication and notification stages run only when those clients are configured or injected.
+- Publication and notification stages run inside the worker once the relevant clients are configured.
 - Failure notifications now fire for rejected-routing and processing-stage failures when notification delivery is configured.
 - Partial-success outcomes preserve the linked PDF and record the failed downstream stage.
+- If flipbook publication is not configured, the worker now records an expected publication-stage partial success and can still send a failure notification for that condition.
 
 Staging note:
 
-- If the flipbook secret is blank, routed linking and artifact persistence can still be staged, but a full success-path publication check is not possible yet.
+- If the flipbook secret is blank, routed linking and artifact persistence can still be staged; the worker records a publication-stage partial success and can notify operators about that expected exception.
 - A notification recipient secret provides the target address only; actual SES or SNS delivery still depends on a real sender or topic configuration in the deployed environment.
 - For SES delivery, the runtime now fails fast unless it can resolve a sender email from `NOTIFICATION_SOURCE` or `NOTIFICATION_SECRET_NAME.source`.
 - Success notifications still depend on publication success, so they remain unavailable until the flipbook secret and notification secret are updated with live environment values.

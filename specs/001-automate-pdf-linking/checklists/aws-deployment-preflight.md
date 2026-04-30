@@ -39,27 +39,27 @@
 
 ## IAM And Access
 
-- [ ] The ECS worker task role can read source PDFs from S3.
-- [ ] The ECS worker task role can write linked PDFs and artifact metadata to S3.
+- [x] The ECS worker task role can read source PDFs from S3.
+- [x] The ECS worker task role can write linked PDFs and artifact metadata to S3.
 - [ ] The ECS worker task role can read the required Secrets Manager secrets.
 - [ ] The ECS worker task role can call Amazon Textract.
-- [ ] The ECS worker task role can read and write `ProcessingJobs` in DynamoDB.
-- [ ] The ECS task execution role can pull from ECR and write logs.
-- [ ] The Step Functions role can start and monitor ECS tasks and write workflow logs.
+- [x] The ECS worker task role can read and write `ProcessingJobs` in DynamoDB.
+- [x] The ECS task execution role can pull from ECR and write logs.
+- [x] The Step Functions role can start and monitor ECS tasks and write workflow logs.
 
 ## Workflow And Triggering
 
 - [x] The workflow input preserves bucket and object key as separate fields.
 - [x] Routing is driven by `SOURCE_KEY` values shaped like `input/<site-prefix>/<file>.pdf`.
 - [x] Unsupported prefixes are rejected before worker processing.
-- [ ] The S3 or EventBridge trigger is active for uploads under `input/`.
-- [ ] Trigger filters do not exclude supported PDF uploads by mistake.
+- [x] The S3 or EventBridge trigger is active for uploads under `input/`.
+- [x] Trigger filters do not exclude supported PDF uploads by mistake.
 
 ## First Live AWS Test
 
-- [ ] A known-good sample PDF is ready for `input/currentcatalog/sample-catalog.pdf`.
-- [ ] Operators know the expected first-pass checks: Step Functions start, ECS task launch, DynamoDB job record creation, linked PDF written to `output/currentcatalog/sample-catalog.pdf`, and CloudWatch logs available.
-- [ ] Operators do not treat missing flipbook publication or success notification as a worker-path failure while live secret values are still pending.
+- [x] A known-good sample PDF is ready for `input/currentcatalog/sample-catalog.pdf`.
+- [x] Operators know the expected first-pass checks: Step Functions start, ECS task launch, DynamoDB job record creation, linked PDF written to `output/currentcatalog/sample-catalog.pdf`, and CloudWatch logs available.
+- [x] Operators do not treat missing flipbook publication or success notification as a worker-path failure while live secret values are still pending.
 
 ## Follow-Up Validation
 

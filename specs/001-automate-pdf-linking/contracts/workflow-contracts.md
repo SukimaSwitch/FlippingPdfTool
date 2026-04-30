@@ -40,6 +40,7 @@
     "sitePrefix": "currentcatalog",
     "publicDomain": "https://www.currentcatalog.com",
     "magentoStoreCode": "currentcatalog",
+    "productUrlTemplate": "https://www.currentcatalog.com/buy/{url_key}.html",
     "outputBucket": "cmg-catalog-book",
     "outputKey": "output/currentcatalog/spring-2026-catalog.pdf"
   }
@@ -86,7 +87,8 @@
     "sitePrefix": "currentcatalog",
     "publicDomain": "https://www.currentcatalog.com",
     "magentoStoreCode": "currentcatalog",
-    "magentoProductLookupRoute": "/rest/currentcatalog/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]={sku}&searchCriteria[filterGroups][0][filters][0][conditionType]=like"
+    "magentoProductLookupRoute": "/rest/currentcatalog/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]={sku}&searchCriteria[filterGroups][0][filters][0][conditionType]=like",
+    "productUrlTemplate": "https://www.currentcatalog.com/buy/{url_key}.html"
   },
   "notificationGroup": "catalog-ops@example.com",
   "triggeredAt": "2026-04-28T18:30:00Z"
@@ -98,6 +100,7 @@
 - The worker downloads the source PDF from `sourceBucket/sourceKey`.
 - The worker preserves the original filename in `outputKey` and keeps the site-matching output prefix.
 - The worker uses `siteConfiguration.magentoStoreCode` when building Magento requests.
+- The worker uses `siteConfiguration.productUrlTemplate` to convert Magento `url_key` values into the storefront-specific product URL shape.
 - The worker persists page-level diagnostic artifacts under `artifactPrefix`.
 
 ## 4. Magento Resolution Contract

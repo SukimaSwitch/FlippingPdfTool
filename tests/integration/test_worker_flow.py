@@ -365,6 +365,45 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(repository.final_states[-1]["failure_stage"], "publication")
             self.assertEqual(notify_client.payloads[-1]["finalStatus"], "partial-success")
 
+    def test_missing_publication_configuration_records_expected_partial_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_pdf = temp_path / "input.pdf"
+
+            doc = fitz.open()
+            doc.new_page(width=300, height=400)
+            doc.save(input_pdf)
+            doc.close()
+
+            storage_client = InMemoryStorageClient(input_pdf)
+            repository = InMemoryJobRepository()
+            notify_client = StubNotifyClient()
+            job = build_worker_job(
+                job_id="job-publish-missing-001",
+                source_bucket="cmg-catalog-book",
+                source_key="input/currentcatalog/sample.pdf",
+                triggered_at="2026-04-28T12:00:00Z",
+                notification_group="catalog-ops@example.com",
+            )
+
+            result = process_worker_job(
+                job,
+                storage_client=storage_client,
+                catalog_client=StubCatalogClient(),
+                notify_client=notify_client,
+                job_repository=repository,
+                workspace_dir=temp_path,
+                pipeline_runner=stub_pipeline_runner,
+            )
+
+            self.assertEqual(result.status, "processed")
+            self.assertEqual(storage_client.uploads[0]["key"], "output/currentcatalog/sample.pdf")
+            self.assertEqual(repository.final_states[-1]["final_status"], "partial-success")
+            self.assertEqual(repository.final_states[-1]["failure_stage"], "publication")
+            self.assertEqual(repository.final_states[-1]["failure_code"], "publication-not-configured")
+            self.assertEqual(notify_client.payloads[-1]["notificationType"], "failure")
+            self.assertEqual(notify_client.payloads[-1]["failureStage"], "publication")
+
     def test_notification_failure_preserves_flipbook_and_records_partial_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

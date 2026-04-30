@@ -58,7 +58,8 @@
         "sitePrefix",
         "publicDomain",
         "magentoStoreCode",
-        "magentoProductLookupRoute"
+        "magentoProductLookupRoute",
+        "productUrlTemplate"
       ],
       "properties": {
         "sitePrefix": {
@@ -89,6 +90,15 @@
           "type": "string",
           "pattern": "^/rest/(currentcatalog|colorfulimages|lillianvernon)/V1/products\\?.*conditionType=like.*$",
           "description": "Store-code-specific Magento product search route template used before exact SKU filtering."
+        },
+        "productUrlTemplate": {
+          "type": "string",
+          "enum": [
+            "https://www.currentcatalog.com/buy/{url_key}.html",
+            "https://www.colorfulimages.com/buy/{url_key}.html",
+            "https://www.lillianvernon.com/goods/{url_key}.html"
+          ],
+          "description": "Site-specific customer-facing product URL template built from Magento url_key values."
         }
       }
     },

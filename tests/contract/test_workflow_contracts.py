@@ -30,7 +30,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["artifactPrefix"], "artifacts/job-contract-001/")
         self.assertEqual(
             set(payload["siteConfiguration"].keys()),
-            {"sitePrefix", "publicDomain", "magentoStoreCode", "magentoProductLookupRoute"},
+            {"sitePrefix", "publicDomain", "magentoStoreCode", "magentoProductLookupRoute", "productUrlTemplate"},
         )
         self.assertEqual(payload["siteConfiguration"]["sitePrefix"], "currentcatalog")
         self.assertEqual(payload["siteConfiguration"]["publicDomain"], "https://www.currentcatalog.com")
@@ -40,6 +40,10 @@ class WorkflowContractTests(unittest.TestCase):
             "/rest/currentcatalog/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku"
             "&searchCriteria[filterGroups][0][filters][0][value]={sku}"
             "&searchCriteria[filterGroups][0][filters][0][conditionType]=like",
+        )
+        self.assertEqual(
+            payload["siteConfiguration"]["productUrlTemplate"],
+            "https://www.currentcatalog.com/buy/{url_key}.html",
         )
         self.assertEqual(payload["notificationGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["flipbookProfile"], "default")

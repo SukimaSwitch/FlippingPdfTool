@@ -74,7 +74,7 @@ The planned flow is:
 4. An ECS Fargate container runs the PDF-linking worker.
 5. The worker reads the source PDF, calls Textract, and writes the linked PDF back to S3.
 6. DynamoDB stores durable job state.
-7. Later workflow stages can publish the finished PDF and notify stakeholders.
+7. The ECS worker can publish the finished PDF and notify stakeholders. If flipbook publication is not configured yet, the worker records that as an expected publication-stage partial success and can still send a failure notification.
 
 ## Before You Start
 
@@ -239,7 +239,7 @@ Suggested starting settings:
 - OS: Linux
 - Container port mappings: none required unless you later expose an API
 
-Planned environment variables for the worker include:
+Required runtime variables for the worker include:
 
 - `JOB_ID`
 - `SOURCE_BUCKET`
@@ -254,13 +254,22 @@ Planned environment variables for the worker include:
 - `AWS_REGION`
 - `DYNAMODB_TABLE_NAME`
 
+Static environment variables or task-definition defaults should also include:
+
+- `MAGENTO_SECRET_NAME=flipping-pdf/magento`
+- `FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook`
+- `NOTIFICATION_MODE` such as `ses` or `sns`
+- `NOTIFICATION_SECRET_NAME=flipping-pdf/notifications`
+
+The repository now includes starter templates for the task definition, Step Functions state machine, and EventBridge rule under `aws/templates/`.
+
 Do not hardcode secrets as plain environment variables if you can avoid it. Use ECS secret injection from Secrets Manager.
 
 ## Step 10: Create the Step Functions Workflow
 
 Create a Step Functions state machine to orchestrate the flow.
 
-The initial state machine should do this:
+The checked-in state machine template in `aws/templates/flipping-pdf-workflow.asl.json` does this:
 
 1. Accept the S3 event input.
 2. Validate that the uploaded key is under a supported prefix.
@@ -269,11 +278,13 @@ The initial state machine should do this:
 5. Run the ECS Fargate worker.
 6. Record success or failure.
 
-Later, when the application code supports it, extend the workflow with:
+The ECS worker itself already handles these downstream stages:
 
-1. Flipbook publication.
-2. Success notification.
-3. Failure notification.
+1. Flipbook publication when `flipping-pdf/flipbook` contains a live URL and API key.
+2. Success notification after publication succeeds.
+3. Failure notification for rejected routing, processing failures, publication failures, notification failures, and the expected publication-not-configured case.
+
+If the flipbook secret is blank or incomplete, the workflow still produces the linked PDF, records `partial-success` with `failureStage=publication`, and can notify operators about that expected exception.
 
 Supported site prefixes in the current design are:
 
@@ -311,7 +322,7 @@ docker tag flipping-pdf-worker:latest <account-id>.dkr.ecr.<region>.amazonaws.co
 docker push <account-id>.dkr.ecr.<region>.amazonaws.com/flipping-pdf-worker:latest
 ```
 
-Use the pushed image tag in the existing ECS task definition and Step Functions workflow input path.
+Use the pushed image tag in the task-definition template under `aws/templates/flipping-pdf-worker-task-definition.json`, register that task definition, and then update the state machine definition from `aws/templates/flipping-pdf-workflow.asl.json`.
 
 ## Step 13: Configure Local AWS Credentials for Testing
 
@@ -368,6 +379,11 @@ Then verify:
 4. The linked PDF appears under `output/currentcatalog/sample-catalog.pdf`.
 5. Logs appear in CloudWatch.
 
+If the flipbook secret is not live yet, also verify:
+
+1. The `ProcessingJobs` item ends in `partial-success` with `failureStage=publication`.
+2. A failure notification is sent to the configured SES recipient or SNS topic describing the expected publication exception.
+
 ## Step 16: Validate Failure Handling
 
 After the happy path works, test these failure cases:
@@ -390,17 +406,17 @@ These names are reasonable starting points:
 
 ## What Is Not Finished Yet in This Branch
 
-The worker implementation is present and locally validated, but these deployment-support pieces are still intentionally incomplete in the repository:
+The worker implementation and starter AWS workflow templates are present in the repository, but these deployment-support pieces are still intentionally incomplete:
 
-- Step Functions orchestration code or infrastructure-as-code
-- reproducible infrastructure definitions for the manually provisioned AWS resources
+- fully parameterized infrastructure-as-code for every manually provisioned AWS resource
+- automated placeholder substitution and deployment scripts for the checked-in AWS templates
 - final live secret values for flipbook publication and notification delivery
 
 That means this document can support deployment into the current manually provisioned AWS environment, but the repository is not yet a full infrastructure-from-source deployment package.
 
 ## Recommended Next Steps
 
-1. Push the validated worker image to ECR and update the existing ECS task definition to use that image tag.
-2. Test one supported site prefix and one sample PDF in AWS before enabling broader traffic.
-3. Replace flipbook and notification secret values with live environment values, then validate publication and delivery separately from the core worker path.
-4. Add infrastructure as code later so the AWS setup is reproducible.
+1. Push the validated worker image to ECR and register the task definition from `aws/templates/flipping-pdf-worker-task-definition.json`.
+2. Update the existing Step Functions state machine from `aws/templates/flipping-pdf-workflow.asl.json` and the EventBridge target from `aws/templates/flipping-pdf-eventbridge-rule.json`.
+3. Test one supported site prefix and confirm the linked PDF, DynamoDB job record, and expected publication-stage failure notification path work in AWS.
+4. Replace flipbook secret values with live publication credentials later, then validate the success-notification path separately from the expected publication exception.

@@ -63,6 +63,21 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
         self.assertEqual(payload["notificationGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["triggeredAt"], "2026-04-28T12:00:00+00:00")
 
+    def test_build_job_payload_normalizes_url_encoded_source_key(self) -> None:
+        env = {
+            "JOB_ID": "job-encoded-001",
+            "SOURCE_BUCKET": "cmg-catalog-book",
+            "SOURCE_KEY": "input/currentcatalog/Current+Spring+2026+Sale.pdf",
+        }
+
+        payload = _build_job_payload_from_env(
+            env,
+            secrets_client=FakeSecretsClient({}),
+            now_fn=lambda: "2026-04-28T12:00:00+00:00",
+        )
+
+        self.assertEqual(payload["sourceKey"], "input/currentcatalog/Current Spring 2026 Sale.pdf")
+
     def test_build_catalog_client_uses_secret_host_override(self) -> None:
         env = {
             "MAGENTO_SECRET_NAME": "flipping-pdf/magento",
