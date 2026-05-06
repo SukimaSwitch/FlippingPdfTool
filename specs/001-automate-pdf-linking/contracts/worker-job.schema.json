@@ -8,6 +8,11 @@
     "jobId",
     "sourceBucket",
     "sourceKey",
+    "outputBucket",
+    "outputKey",
+    "artifactBucket",
+    "artifactPrefix",
+    "siteConfiguration",
     "triggeredAt"
   ],
   "properties": {
@@ -18,13 +23,84 @@
     },
     "sourceBucket": {
       "type": "string",
-      "const": "cmg-catalog-book/input",
-      "description": "Input S3 bucket for uploaded PDFs."
+      "const": "cmg-catalog-book",
+      "description": "Physical S3 bucket for uploaded PDFs."
     },
     "sourceKey": {
       "type": "string",
-      "pattern": "^(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
-      "description": "Site-prefixed input object key. Unsupported prefixes are rejected before processing."
+      "pattern": "^input\/(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
+      "description": "Input object key under the supported site prefix. Unsupported prefixes are rejected before processing."
+    },
+    "outputBucket": {
+      "type": "string",
+      "const": "cmg-catalog-book",
+      "description": "Physical S3 bucket for linked output PDFs."
+    },
+    "outputKey": {
+      "type": "string",
+      "pattern": "^output\\/(currentcatalog|colorfulimages|lillianvernon)\/.*\\.pdf$",
+      "description": "Destination object key for the linked PDF using the matched site prefix."
+    },
+    "artifactBucket": {
+      "type": "string",
+      "const": "cmg-catalog-book",
+      "description": "Physical S3 bucket for persisted processing artifacts."
+    },
+    "artifactPrefix": {
+      "type": "string",
+      "pattern": "^artifacts\/.+\/$",
+      "description": "Artifact namespace used for persisted page summaries, Textract payloads, and diagnostics."
+    },
+    "siteConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sitePrefix",
+        "publicDomain",
+        "magentoStoreCode",
+        "magentoProductLookupRoute",
+        "productUrlTemplate"
+      ],
+      "properties": {
+        "sitePrefix": {
+          "type": "string",
+          "enum": [
+            "currentcatalog",
+            "colorfulimages",
+            "lillianvernon"
+          ]
+        },
+        "publicDomain": {
+          "type": "string",
+          "enum": [
+            "https://www.currentcatalog.com",
+            "https://www.colorfulimages.com",
+            "https://www.lillianvernon.com"
+          ]
+        },
+        "magentoStoreCode": {
+          "type": "string",
+          "enum": [
+            "currentcatalog",
+            "colorfulimages",
+            "lillianvernon"
+          ]
+        },
+        "magentoProductLookupRoute": {
+          "type": "string",
+          "pattern": "^/rest/(currentcatalog|colorfulimages|lillianvernon)/V1/products\\?.*conditionType=like.*$",
+          "description": "Store-code-specific Magento product search route template used before exact SKU filtering."
+        },
+        "productUrlTemplate": {
+          "type": "string",
+          "enum": [
+            "https://www.currentcatalog.com/buy/{url_key}.html",
+            "https://www.colorfulimages.com/buy/{url_key}.html",
+            "https://www.lillianvernon.com/goods/{url_key}.html"
+          ],
+          "description": "Site-specific customer-facing product URL template built from Magento url_key values."
+        }
+      }
     },
     "triggeredAt": {
       "type": "string",
@@ -38,6 +114,14 @@
     "requestedBy": {
       "type": "string",
       "description": "Optional identifier for the system or operator that initiated the job."
+    },
+    "notificationGroup": {
+      "type": "string",
+      "description": "Configured stakeholder notification target for success or failure outcomes."
+    },
+    "flipbookProfile": {
+      "type": "string",
+      "description": "Optional publication profile identifier for the flipbook service."
     }
   }
 }

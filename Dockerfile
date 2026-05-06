@@ -26,4 +26,4 @@ RUN useradd --create-home --shell /bin/bash appuser \
 
 USER appuser
 
-CMD ["python", "-m", "src.main"]
+CMD ["python", "-m", "src.worker.entrypoint"]

@@ -56,7 +56,7 @@ class FigureMatch:
     description_text: str
     description_bbox: Optional[Dict[str, float]]
     sku: str
-    url: str
+    url: Optional[str]
     score: float
     sku_source: str = "ocr"
     native_text: Optional[str] = None
@@ -167,6 +167,35 @@ def parse_args() -> argparse.Namespace:
     if args.textract_retries < 1:
         parser.error("--textract-retries must be at least 1")
     return args
+
+
+def build_pipeline_args(**overrides: Any) -> argparse.Namespace:
+    options = {
+        "pdf": None,
+        "domain": DEFAULT_DOMAIN,
+        "output_dir": str(DEFAULT_OUTPUT_DIR),
+        "figure_info_dir": str(DEFAULT_INFO_DIR),
+        "dpi": DEFAULT_RENDER_DPI,
+        "url_template": None,
+        "aws_region": os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION"),
+        "textract_adapter_id": os.getenv("TEXTRACT_ADAPTER_ID"),
+        "textract_adapter_version": os.getenv("TEXTRACT_ADAPTER_VERSION"),
+        "debug_overlays": False,
+        "page_start": 1,
+        "page_end": None,
+        "max_pages": None,
+        "resume_run_id": None,
+        "skip_existing": False,
+        "keep_rendered_pages": False,
+        "textract_retries": 3,
+        "url_resolver": None,
+    }
+    options.update(overrides)
+    return argparse.Namespace(**options)
+
+
+def run_pipeline_from_options(**options: Any) -> Dict[str, Any]:
+    return run_pipeline(build_pipeline_args(**options))
 
 
 def build_url_template(domain: str, url_template: Optional[str]) -> str:
@@ -745,7 +774,7 @@ def match_figures_to_descriptions(
                 description_text=text_candidate.text,
                 description_bbox=text_candidate.bbox,
                 sku=sku,
-                url=url_template.format(sku=sku),
+                url=None,
                 score=score,
             )
         )
@@ -974,7 +1003,6 @@ def enrich_matches_with_pdf_text(
     client: Any,
     page: fitz.Page,
     matches: Sequence[FigureMatch],
-    url_template: str,
     retries: int,
 ) -> List[FigureMatch]:
     enriched_matches: List[FigureMatch] = []
@@ -984,7 +1012,6 @@ def enrich_matches_with_pdf_text(
         sku, source, selected_text = resolve_sku_text(match.description_text, pdf_text_candidates, regional_ocr_candidates)
         if sku:
             match.sku = sku
-            match.url = url_template.format(sku=sku)
             match.sku_source = source
             if source == "pdf":
                 match.native_text = selected_text
@@ -996,9 +1023,60 @@ def enrich_matches_with_pdf_text(
     return enriched_matches
 
 
+def _lookup_result_value(result: Any, field: str) -> Any:
+    if isinstance(result, dict):
+        return result.get(field)
+    return getattr(result, field, None)
+
+
+def resolve_product_links(
+    matches: Sequence[FigureMatch],
+    url_template: str,
+    url_resolver: Optional[Callable[[str], Any]] = None,
+) -> Tuple[List[FigureMatch], List[str], List[Dict[str, Any]]]:
+    linked_matches: List[FigureMatch] = []
+    unmatched_skus: List[str] = []
+    unresolved_matches: List[Dict[str, Any]] = []
+
+    for match in matches:
+        if url_resolver is None:
+            match.url = url_template.format(sku=match.sku)
+            linked_matches.append(match)
+            continue
+
+        lookup_result = url_resolver(match.sku)
+        status = _lookup_result_value(lookup_result, "status")
+        product_url = _lookup_result_value(lookup_result, "product_url")
+
+        if status == "matched" and product_url:
+            match.url = product_url
+            linked_matches.append(match)
+            continue
+
+        if status == "unresolved":
+            unresolved_matches.append(
+                {
+                    "sku": match.sku,
+                    "matched_sku": _lookup_result_value(lookup_result, "matched_sku") or match.sku,
+                    "reason": _lookup_result_value(lookup_result, "unresolved_reason") or "missing_url_key",
+                    "figure_bbox": match.figure_bbox,
+                    "description_bbox": match.description_bbox,
+                    "description_text": match.description_text,
+                    "sku_source": match.sku_source,
+                }
+            )
+            continue
+
+        unmatched_skus.append(match.sku)
+
+    return linked_matches, unmatched_skus, unresolved_matches
+
+
 def add_links_to_pdf(doc: fitz.Document, matches: Sequence[FigureMatch]) -> int:
     link_count = 0
     for match in matches:
+        if not match.url:
+            continue
         page = doc[match.page_index]
         rects = [bbox_to_page_rect(page, match.figure_bbox)]
         if match.description_bbox:
@@ -1173,6 +1251,8 @@ def run_pipeline(args: argparse.Namespace) -> Dict[str, Any]:
                 restored_matches = [payload_to_match(page_index, payload) for payload in page_summary.get("matches", [])]
                 links_added += add_links_to_pdf(doc, restored_matches)
                 matches_found += len(restored_matches)
+                unmatched_count = len(page_summary.get("unmatched_skus", []))
+                unresolved_count = len(page_summary.get("unresolved_matches", []))
                 restored_pages += 1
                 page_summaries.append(page_summary)
                 progress_bar.update(page_number, "restored", links_added, matches_found, restored_pages, len(failed_pages))
@@ -1203,8 +1283,12 @@ def run_pipeline(args: argparse.Namespace) -> Dict[str, Any]:
                 textract_client,
                 page,
                 page_matches,
-                url_template,
                 args.textract_retries,
+            )
+            page_matches, unmatched_skus, unresolved_matches = resolve_product_links(
+                page_matches,
+                url_template,
+                getattr(args, "url_resolver", None),
             )
             page_link_count = add_links_to_pdf(doc, page_matches)
 
@@ -1216,6 +1300,8 @@ def run_pipeline(args: argparse.Namespace) -> Dict[str, Any]:
                 "description_candidate_count": len(text_candidates),
                 "links_added": page_link_count,
                 "matches": [match_to_payload(match) for match in page_matches],
+                "unmatched_skus": unmatched_skus,
+                "unresolved_matches": unresolved_matches,
             }
             save_json(summary_path, page_summary)
             page_summaries.append(page_summary)
@@ -1261,6 +1347,8 @@ def run_pipeline(args: argparse.Namespace) -> Dict[str, Any]:
         "failed_pages": failed_pages,
         "links_added": links_added,
         "matches": matches_found,
+        "unmatched_sku_count": sum(len(page_summary.get("unmatched_skus", [])) for page_summary in page_summaries),
+        "unresolved_match_count": sum(len(page_summary.get("unresolved_matches", [])) for page_summary in page_summaries),
         "page_summaries": page_summaries,
     }
     save_json(run_info_dir / "run_summary.json", summary)

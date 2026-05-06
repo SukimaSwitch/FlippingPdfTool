@@ -2,25 +2,40 @@
 
 ## Goal
 
-Validate the planned workflow that automates PDF linking, site-aware routing, publication, and notification around the existing `src/main.py` pipeline.
+Validate the planned workflow that automates PDF linking, site-aware routing, Magento URL resolution, flipbook publication, and stakeholder notification around the existing `src/main.py` pipeline.
 
 ## Prerequisites
 
-- Python environment installed for local tests.
-- AWS credentials with access to S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and the chosen notification mechanism.
-- Test credentials for the Magento product catalog lookup and flipbook service.
-- A sample catalog PDF larger than 70 MB with more than 80 pages.
-- A container runtime such as Docker for local worker validation.
+- Python environment available for local tests.
+- AWS credentials with access to S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and the selected notification mechanism.
+- Test credentials for Magento product search and the flipbook service.
+- A representative catalog PDF, ideally including at least one exact Magento match, one partial-only Magento response, and one exact match missing `url_key`.
+- Docker or another container runtime for local worker validation.
 
-## 1. Verify the current local pipeline baseline
+Suggested local environment variables for routed validation:
 
-Run the existing unit tests to confirm the PDF-linking core still behaves as expected.
+- `AWS_REGION`
+- `DYNAMODB_TABLE_NAME`
+- `MAGENTO_SECRET_NAME`
+- `MAGENTO_SEARCH_BASE_URL` only when you need to override the API host from the secret; do not point it at the storefront domain
+- `MAGENTO_BEARER_TOKEN_SECRET_NAME` for a preissued bearer token, or `MAGENTO_SECRET_NAME` fields `username` and `password` so the worker can mint an admin token
+- `FLIPBOOK_SECRET_NAME`
+- `FLIPBOOK_API_BASE_URL`
+- `FLIPBOOK_API_SECRET_NAME`
+- `NOTIFICATION_MODE`
+- `NOTIFICATION_TARGET`
+- `NOTIFICATION_SECRET_NAME`
+- `NOTIFICATION_SOURCE` for SES delivery, or `NOTIFICATION_TOPIC_ARN` for SNS delivery
+
+## 1. Verify the local pipeline baseline
+
+Run the current test suite to confirm the PDF-linking core is stable before orchestration work is exercised.
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Run the current CLI locally against a representative PDF to confirm the baseline artifact set.
+Optionally run the CLI locally against a representative PDF to confirm the baseline artifact set.
 
 ```bash
 python src/main.py "/path/to/sample-catalog.pdf" --domain www.currentcatalog.com --skip-existing
@@ -30,36 +45,59 @@ Expected result:
 
 - A linked PDF is produced locally.
 - Per-page summaries and Textract artifacts are created.
-- Link annotations are visible after saving and reopening the output PDF.
+- Link annotations remain visible after saving and reopening the output PDF.
+- Local fallback runs still work even without live Magento credentials.
 
-## 2. Validate ingest-routing decisions before the worker runs
+## 2. Validate ingest-routing decisions before worker execution
 
-Use representative S3 event payloads or unit tests for the routing helper.
+Use representative S3 event payloads or routing-unit tests.
 
 Acceptance cases:
 
-- `input/currentcatalog/spring-2026-catalog.pdf` resolves to domain `https://www.currentcatalog.com`, store code `currentcatalog`, and output key `output/currentcatalog/spring-2026-catalog.pdf`.
-- `input/colorfulimages/spring-2026-catalog.pdf` resolves to domain `https://www.colorfulimages.com`, store code `colorfulimages`, and output key `output/colorfulimages/spring-2026-catalog.pdf`.
-- `input/lillianvernon/spring-2026-catalog.pdf` resolves to domain `https://www.lillianvernon.com`, store code `lillianvernon`, and output key `output/lillianvernon/spring-2026-catalog.pdf`.
+- `input/currentcatalog/spring-2026-catalog.pdf` resolves to `https://www.currentcatalog.com`, store code `currentcatalog`, and output key `output/currentcatalog/spring-2026-catalog.pdf`.
+- `input/colorfulimages/spring-2026-catalog.pdf` resolves to `https://www.colorfulimages.com`, store code `colorfulimages`, and output key `output/colorfulimages/spring-2026-catalog.pdf`.
+- `input/lillianvernon/spring-2026-catalog.pdf` resolves to `https://www.lillianvernon.com`, store code `lillianvernon`, and output key `output/lillianvernon/spring-2026-catalog.pdf`.
 - `input/unknown/spring-2026-catalog.pdf` is rejected during ingest-routing and does not invoke PDF processing.
 
 Expected result:
 
-- Every supported prefix produces a deterministic site configuration.
+- Every supported prefix produces one deterministic site configuration.
 - Unknown prefixes create a failed job record with a routing-stage error and no worker run ID.
 
-## 3. Containerize and invoke the worker entrypoint
+## 3. Validate Magento URL resolution rules in isolation
 
-Build the worker image that wraps the current pipeline plus cloud adapters.
+Test the catalog lookup adapter with representative Magento responses before running end-to-end jobs.
+
+Required validation cases:
+
+- The worker authenticates to Magento before product search by either reusing a configured bearer token or exchanging `username` and `password` through `POST /rest/V1/integration/admin/token`.
+- The worker calls `GET /rest/<store_code>/V1/products?...conditionType=like` using the routed store code.
+- If the search response contains an item whose `sku` exactly equals the detected catalog SKU and that item has `custom_attributes[].attribute_code = url_key`, build the final link as `https://<domain>/<url_key>.html`.
+- If the response contains only partial or fuzzy SKU candidates, add no link and count the SKU as unmatched.
+- If the response contains an exact SKU match but no `url_key`, add no link and record an unresolved match for triage.
+- If the source key does not start with `input/currentcatalog/`, `input/colorfulimages/`, or `input/lillianvernon/`, reject the job before any Magento or PDF-processing work begins.
+
+Expected result:
+
+- Magento authentication succeeds before product search requests are issued.
+- Only exact SKU equality can produce a link.
+- Final URLs come from `url_key`, not directly from SKU.
+- Missing `url_key` does not fail the job.
+
+## 4. Run the worker locally with a routed payload
+
+Build the worker image.
 
 ```bash
 docker build -t flipping-pdf-worker .
 ```
 
-Run the worker locally with environment variables or a JSON payload that mimic a routed cloud job.
+Run the worker with routed environment variables.
 
 ```bash
 docker run --rm \
+  -e AWS_REGION=us-east-1 \
+  -e AWS_DEFAULT_REGION=us-east-1 \
   -e JOB_ID=test-job-001 \
   -e SOURCE_BUCKET=cmg-catalog-book \
   -e SOURCE_KEY=input/currentcatalog/sample-catalog.pdf \
@@ -68,63 +106,117 @@ docker run --rm \
   -e SITE_PREFIX=currentcatalog \
   -e PUBLIC_DOMAIN=https://www.currentcatalog.com \
   -e MAGENTO_STORE_CODE=currentcatalog \
+  -e DYNAMODB_TABLE_NAME=ProcessingJobs \
+  -e MAGENTO_SECRET_NAME=flipping-pdf/magento \
+  -v "$HOME/.aws:/home/appuser/.aws:ro" \
+  -e FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook \
+  -e NOTIFICATION_MODE=ses \
+  -e NOTIFICATION_SECRET_NAME=flipping-pdf/notifications \
   flipping-pdf-worker
+```
+
+Expected Magento secret shape for username/password authentication:
+
+```json
+{
+  "host": "https://api.cmgdev.com",
+  "username": "<magento-admin-username>",
+  "password": "<magento-admin-password>"
+}
+```
+
+Alternative Magento secret shape when a bearer token is already issued:
+
+```json
+{
+  "host": "https://api.cmgdev.com",
+  "bearer_token": "<preissued-access-token>"
+}
+```
+
+If `MAGENTO_SEARCH_BASE_URL` is set, it must also be the Magento API host, not the public storefront domain. The storefront domain still comes from routing and is used only for the final customer-facing product URL.
+
+Optional direct Python validation path:
+
+```python
+from src.worker.entrypoint import process_worker_request
+
+payload = {
+    "jobId": "test-job-001",
+    "sourceBucket": "cmg-catalog-book",
+    "sourceKey": "input/currentcatalog/sample-catalog.pdf",
+    "triggeredAt": "2026-04-28T12:00:00Z",
+    "notificationGroup": "catalog-ops@example.com",
+}
+
+result = process_worker_request(payload)
+print(result)
 ```
 
 Expected result:
 
 - The worker downloads the source PDF from S3.
-- The worker performs Magento lookups with the configured store code.
-- The worker uploads the linked PDF and diagnostic artifacts to S3.
-- The worker emits a structured processing result payload.
+- Magento authentication succeeds through the configured bearer token or the admin-token exchange.
+- Magento lookups use the routed store code.
+- Exact-match products with `url_key` produce site-specific customer URLs: `currentcatalog` and `colorfulimages` use `/buy/<url_key>.html`, and `lillianvernon` uses `/goods/<url_key>.html`.
+- Exact-match products without `url_key` remain unlinked and are recorded as unresolved.
+- The worker writes the linked PDF to the same bucket under the routed `output/<site-prefix>/...` key.
+- The worker uploads the linked PDF and diagnostic artifacts and emits a structured processing result.
 
-## 4. Exercise the orchestration flow
+Staging recommendation when flipbook credentials are still blank:
 
-Trigger the workflow with a test PDF upload or a representative S3 event payload.
+- Proceed with staged worker deployment for ingest-routing, PDF linking, S3 output, DynamoDB persistence, and artifact retention.
+- Treat flipbook publication as intentionally unavailable until the flipbook secret contains both a URL and API key.
+- Do not use staging success notifications as proof of production readiness until the flipbook secret and notification secret are updated with real live-environment values.
+- A notification secret containing only `recipient` is not enough for SES delivery; add `source` or supply `NOTIFICATION_SOURCE`, or switch staging to SNS with a real topic ARN.
+- A Magento secret that omits both `bearer_token` and `username` plus `password` is not enough for live product lookup validation.
+- Rejected-routing and processing failures can now exercise real failure notifications in staging even before flipbook publication is enabled.
 
-Example worker input payload:
+## 5. Exercise orchestration, publication, and notification
 
-```json
-{
-  "jobId": "test-job-001",
-  "sourceBucket": "cmg-catalog-book",
-  "sourceKey": "input/currentcatalog/sample-catalog.pdf",
-  "outputBucket": "cmg-catalog-book",
-  "outputKey": "output/currentcatalog/sample-catalog.pdf",
-  "triggeredAt": "2026-04-23T12:00:00Z"
-}
-```
-
-Expected result:
-
-- A Processing Job record is created.
-- Job state first records ingest-routing acceptance or rejection.
-- Accepted jobs run asynchronously without depending on short-lived upload event execution.
-- Accepted jobs advance through processing, publication, notification, and finalization.
-
-## 5. Validate publication and notification
-
-Use a successful worker result to continue the flow.
+Trigger the workflow with a test upload or a representative routed payload.
 
 Expected result:
 
-- The processed PDF is published to the flipbook service.
-- The success notification includes the original filename, final status, and flipbook URL.
-- The notification payload also reflects the source site prefix and resulting output location for auditability.
+- A `Processing Job` record is created.
+- Accepted jobs advance through routing, processing, publication, notification, and finalization.
+- Successful jobs record the flipbook URL and send a success notification containing the filename, final status, and flipbook URL.
 
 ## 6. Validate failure and partial-success paths
 
 Test at least these scenarios:
 
 - Invalid PDF source.
-- Unknown S3 site prefix.
-- SKU not found in the product catalog.
-- Flipbook publication failure after the linked PDF is already created.
+- Unsupported site prefix.
+- SKU with no exact Magento match.
+- Exact Magento match without `url_key`.
+- Flipbook publication failure after the linked PDF is created.
 - Notification delivery failure after publication succeeds.
 
 Expected result:
 
-- Invalid PDFs end in a failed Processing Job with error details.
-- Unknown prefixes fail during ingest-routing before worker invocation.
-- Unmatched SKUs produce no links for those items and do not fail the job.
+- Invalid PDFs end in a failed job with processing-stage error details.
+- Unsupported prefixes fail during ingest-routing before worker invocation.
+- Non-exact or missing Magento matches do not fail the overall job.
+- Missing `url_key` cases are recorded as unresolved matches.
 - Publication and notification failures preserve already-created artifacts and record the failed stage.
+
+## 7. Latest Local Validation Snapshot
+
+Validated locally on 2026-04-28:
+
+```bash
+.venv/bin/python -m unittest tests.test_main -v
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+Observed result:
+
+- The current suite passed locally before this planning refresh.
+- Coverage includes shared CLI and worker reuse, exact-SKU Magento matching, unresolved `url_key` handling, routed processing, publication, success notification, rejected routing, invalid-PDF handling, publication failure, notification failure, failure-notification payloads, and artifact-retention metadata persistence.
+
+Open validation gap:
+
+- Live AWS integration remains unverified in automation and still depends on real infrastructure, credentials, and third-party endpoints.
+- A blank flipbook secret blocks full US2 success-path validation even though the worker can still run staged US1 and partial-failure flows.
+- A notification secret containing only a recipient does not yet prove live SES or SNS delivery in staging.

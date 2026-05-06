@@ -11,6 +11,13 @@
 
 - Q: How should the workflow handle PDFs uploaded outside the known site-specific S3 prefixes? -> A: Reject them during ingest/routing and mark the job failed.
 
+### Session 2026-04-28
+
+- Q: How should the URL builder derive the final product page URL from the Magento product response? -> A: Search products through the Magento API, read the `url_key` value from `custom_attributes`, and build the product URL as `https://<domain>/<url_key>.html`.
+- Q: How should Magento SKU search results be matched when multiple or partial candidates are returned? -> A: Use only an exact SKU match after the Magento search; if no exact match exists, leave the item unlinked.
+- Q: How should the workflow handle an exact-match Magento product that does not include a `url_key` attribute? -> A: Leave the item unlinked and record it as an unresolved product match.
+- Q: How should the worker authenticate to Magento before product lookup requests? -> A: If a preissued bearer token is not supplied, exchange the configured Magento username and password through `POST /rest/V1/integration/admin/token`, then reuse that bearer token for subsequent product search requests.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Produce a linked catalog automatically (Priority: P1)
@@ -64,6 +71,8 @@ As a support or operations user, I want failures and partial results to be recor
 - A source file is uploaded outside the supported site prefixes and therefore cannot be routed to a valid domain or Magento store code.
 - A page contains text or images but no SKU that can be matched to a product URL.
 - A SKU is detected but no product URL is returned from the product catalog service, so the related image and description must remain unlinked.
+- A Magento lookup returns partial or multiple non-exact SKU candidates, and the system must ignore those candidates unless one product SKU exactly matches the detected catalog SKU.
+- A Magento product exactly matches the detected SKU but does not provide a `url_key`, so the related image and description must remain unlinked and the unresolved match must be recorded for triage.
 - The same SKU appears multiple times on a page and each matching image-description pair must receive the correct link.
 - The processed PDF is created successfully, but the flipbook service rejects the upload or does not return a publication URL.
 - The workflow completes or fails, but the notification email cannot be delivered.
@@ -80,7 +89,13 @@ As a support or operations user, I want failures and partial results to be recor
 - **FR-003**: The system MUST process the PDF one page at a time and evaluate every page for product figures and related descriptive text.
 - **FR-004**: The system MUST derive candidate product identifiers from page content and use the detected SKU value to search the configured product catalog source for a destination product URL.
 - **FR-004a**: The site configuration mappings MUST be: `currentcatalog/` -> domain `https://www.currentcatalog.com`, store code `currentcatalog`; `colorfulimages/` -> domain `https://www.colorfulimages.com`, store code `colorfulimages`; `lillianvernon/` -> domain `https://www.lillianvernon.com`, store code `lillianvernon`.
+- **FR-004aa**: Before issuing Magento product search requests, the system MUST authenticate with Magento using one of these methods: a preissued bearer token from configuration, or an admin-token exchange through `POST /rest/V1/integration/admin/token` using the configured Magento username and password.
+- **FR-004ab**: When username/password authentication is used, the admin-token exchange request MUST send XML login payload data and reuse the returned bearer token for subsequent product search requests within the same worker execution.
 - **FR-004b**: Product lookup requests to Magento MUST use the site-specific store code in the route `GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]=<SKU>&searchCriteria[filterGroups][0][filters][0][conditionType]=like`.
+- **FR-004c**: When Magento returns a matching product, the system MUST inspect the product `custom_attributes` array, find the `url_key` attribute, and treat its `value` as the canonical page slug for link generation.
+- **FR-004d**: The final product URL MUST be constructed as `https://<domain>/<url_key>.html`, where `<domain>` comes from the site configuration mapping and `<url_key>` comes from the Magento product response.
+- **FR-004e**: The system MUST add a product link only when the Magento response contains at least one product whose SKU exactly matches the detected catalog SKU; partial or fuzzy matches MUST be ignored.
+- **FR-004f**: If an exact SKU match is found but the matching Magento product does not contain a `url_key` attribute, the system MUST leave the related image and description unlinked and record the product candidate as an unresolved match.
 - **FR-005**: The system MUST add hyperlinks to the output PDF for each matched product image and its corresponding product description when a product URL is resolved.
 - **FR-006**: The system MUST leave image and text regions unchanged when no product URL can be resolved for a detected SKU.
 - **FR-007**: The system MUST preserve pages that have no valid product match without corrupting the remainder of the output PDF.
@@ -101,8 +116,10 @@ As a support or operations user, I want failures and partial results to be recor
 - **Source PDF**: An uploaded catalog document identified by filename, storage location, upload time, and processing eligibility.
 - **Site Configuration**: The routing metadata derived from the source S3 prefix, including input prefix, output prefix, product URL domain, and Magento store code.
 - **Processing Job**: The end-to-end workflow instance for one uploaded PDF, including lifecycle state, timestamps, stage outcomes, and references to generated artifacts.
-- **Page Result**: The per-page record of extracted content, identified products, matched link targets, and page-level success or failure notes.
+- **Page Result**: The per-page record of extracted content, identified products, matched link targets, unresolved product candidates, and page-level success or failure notes.
 - **Product Match**: The association between a detected product identifier, its resolved product URL, the image region to link, and the description region to link.
+- **Unresolved Product Match**: A detected SKU or exact Magento product candidate that could not be converted into a final product URL because a required field such as `url_key` was missing.
+- **Magento Product Response**: The product lookup payload that includes product identity fields and a `custom_attributes` collection from which the `url_key` value is extracted.
 - **Published Output**: The finished linked PDF and any resulting online publication URL associated with a completed processing job.
 - **Notification Record**: The delivery payload and outcome for stakeholder notifications sent for success or failure states.
 
@@ -124,6 +141,10 @@ As a support or operations user, I want failures and partial results to be recor
 - The existing catalog-linking logic remains the authoritative basis for page rendering, content extraction, SKU detection, and link placement behavior.
 - Uploaded files in scope are catalog PDFs only; non-PDF assets are out of scope for this feature.
 - The product catalog source supports SKU-based search and returns product URL information when a matching product exists.
+- Magento authentication credentials are available either as a reusable bearer token or as a username/password pair that is authorized to mint an admin access token.
+- Magento SKU search may return partial matches, so link generation relies on validating an exact SKU match in the response before using any returned product data.
+- For in-scope Magento responses, the canonical product page slug is supplied as the `url_key` entry inside `custom_attributes`, and the final customer-facing URL is derived by combining that slug with the site-specific domain and the `.html` suffix.
+- If an exact-match Magento product omits `url_key`, the workflow records that condition for follow-up and does not fail the full PDF job solely because of that missing field.
 - Catalog PDFs in scope may exceed 70 MB and 80 pages, and long-running processing is acceptable for valid jobs.
 - The configured email group, publication account, and service credentials are available before processing begins.
 - This feature covers automated processing of one uploaded PDF per job and does not include a manual review or correction interface.

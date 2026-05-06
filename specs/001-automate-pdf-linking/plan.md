@@ -1,31 +1,31 @@
 # Implementation Plan: Automated PDF Link Publishing
 
-**Branch**: `[001-automate-pdf-linking]` | **Date**: 2026-04-23 | **Spec**: `specs/001-automate-pdf-linking/spec.md`
-**Input**: Feature specification from `specs/001-automate-pdf-linking/spec.md`
+**Branch**: `[001-automate-pdf-linking]` | **Date**: 2026-04-28 | **Spec**: `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/spec.md`
+**Input**: Feature specification from `/home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/spec.md`
 
 ## Summary
 
-Automate catalog processing from site-specific S3 ingest through linked-PDF generation, flipbook publication, and stakeholder notification by wrapping the existing page-by-page Python linker in an asynchronous AWS workflow. The design adds an explicit ingest-routing step that validates the source prefix, derives the site configuration for `currentcatalog`, `colorfulimages`, or `lillianvernon`, writes the linked PDF back to the matching output prefix, and fails fast before PDF processing when the prefix is unknown.
+ Automate catalog PDF processing by routing uploads from `cmg-catalog-book/input/<site-prefix>/...` into a site-aware worker workflow that reuses the existing page-by-page PDF-linking pipeline, writes linked PDFs to `cmg-catalog-book/output/<site-prefix>/...`, publishes the linked artifact as a flipbook, and sends stakeholder notifications. Magento lookups remain site-specific and must authenticate first, either with a preissued bearer token or by exchanging configured username/password credentials through `POST /rest/V1/integration/admin/token`, then use the store-code product route, require an exact SKU match from the response, extract `url_key` from `custom_attributes`, and build the final customer URL as `https://<domain>/<url_key>.html`; exact matches without `url_key` stay unlinked and are recorded as unresolved matches.
 
 ## Technical Context
 
-**Language/Version**: Python 3.14 container runtime for worker and helper entrypoints; existing local pipeline remains Python-based  
-**Primary Dependencies**: `boto3`, `requests`, `PyMuPDF`, `Pillow`, `opencv-python`, `numpy`, Amazon Textract, AWS Step Functions, ECS/Fargate, SES or SNS, Secrets Manager  
-**Storage**: Amazon S3 for source PDFs, linked PDFs, and retained artifacts; DynamoDB for durable processing-job state; ephemeral container storage for intermediate page images  
-**Testing**: `unittest` via `.venv/bin/python -m unittest discover -s tests -v`, plus unit tests for routing and state transitions, contract tests for workflow payloads, and integration tests for worker orchestration boundaries  
-**Target Platform**: Linux containers on ECS Fargate coordinated by AWS Step Functions  
-**Project Type**: Single Python repository with a reusable PDF-linking core plus workflow and orchestration adapters  
-**Performance Goals**: Meet the spec targets of unattended completion for valid uploads, linked output available within 15 minutes for catalogs up to 100 pages, and notifications for all terminal outcomes  
-**Constraints**: Preserve the existing page-by-page linking behavior as the domain core; route strictly from the uploaded S3 prefix; reject unknown prefixes before PDF processing; keep successful upstream artifacts when downstream steps fail; use site-specific Magento store codes and domains; support duplicate uploads without ambiguous final job state  
-**Scale/Scope**: One uploaded catalog PDF per job, up to 100 pages per success target, three supported site configurations, one linked PDF and optional flipbook URL per job
+**Language/Version**: Python 3.14 container runtime for the worker, with the existing Python CLI reused locally  
+ **Primary Dependencies**: boto3, requests, PyMuPDF, Pillow, opencv-python-headless, numpy, AWS Textract integration, Step Functions/ECS adapters, SES or SNS notification adapter, Magento admin-token exchange over XML login payloads  
+**Storage**: Amazon S3 for source/output/artifacts, DynamoDB for durable job state, Secrets Manager for third-party credentials, local ephemeral container storage for rendered/intermediate page files  
+**Testing**: Python `unittest` suite with unit, integration, and contract coverage  
+**Target Platform**: Linux container on ECS/Fargate, orchestrated by AWS Step Functions  
+**Project Type**: Python CLI plus asynchronous worker/orchestration service  
+**Performance Goals**: Complete valid jobs for PDFs larger than 70 MB and 80+ pages without failing solely due to short-lived trigger runtime limits  
+**Constraints**: Reject unsupported prefixes before processing, preserve successfully created artifacts after downstream failures, keep existing page-linking behavior as the domain core, and treat partial/non-exact Magento matches as non-linkable  
+**Scale/Scope**: One processing job per uploaded PDF, three supported storefronts, page-by-page artifact capture for diagnostics and resumability
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- Constitution file review: `.specify/memory/constitution.md` is still an unfilled template with placeholder principle names and no ratified project-specific rules.
-- Pre-Phase 0 gate result: PASS by default. No enforceable constitution clauses exist that would block planning.
-- Post-Phase 1 gate result: PASS by default. The design remains conservative by preserving the tested PDF-linking core, adding explicit contracts, and documenting failure isolation.
+- The repository constitution at `/home/xzhang/project/FlippingPdfTool/.specify/memory/constitution.md` is still an unratified placeholder template with no enforceable project-specific principles.
+- Result before research: PASS for planning execution because there are no concrete gates to violate.
+- Result after design: PASS unchanged; follow-up needed outside this feature to replace the placeholder constitution with real governance rules if future planning gates should be binding.
 
 ## Project Structure
 
@@ -41,54 +41,63 @@ specs/001-automate-pdf-linking/
 │   ├── worker-job.schema.json
 │   ├── worker-result.schema.json
 │   └── workflow-contracts.md
-└── tasks.md               # Created later by /speckit.tasks
+└── tasks.md
 ```
 
 ### Source Code (repository root)
 
 ```text
 src/
-├── main.py                # Existing PDF-linking core to preserve
+├── __init__.py
+├── main.py
 └── worker/
-    ├── entrypoint.py      # Planned worker orchestration entrypoint
-    ├── routing.py         # Planned S3 prefix validation and site mapping
-    ├── catalog_client.py  # Planned Magento lookup adapter
-    ├── publish_client.py  # Planned flipbook publication adapter
-    ├── notify_client.py   # Planned SES/SNS notification adapter
-    └── job_repository.py  # Planned DynamoDB job-state persistence
+  ├── __init__.py
+  ├── catalog_client.py
+  ├── entrypoint.py
+  ├── job_repository.py
+  ├── logging_utils.py
+  ├── models.py
+  ├── notify_client.py
+  ├── pipeline_runner.py
+  ├── publish_client.py
+  ├── routing.py
+  └── storage_client.py
 
 tests/
-├── test_main.py           # Existing PDF-linking unit coverage
+├── __init__.py
+├── test_main.py
 ├── contract/
-│   └── test_workflow_contracts.py
 ├── integration/
-│   └── test_worker_flow.py
 └── unit/
-    └── test_site_routing.py
+
+static/
+└── Requirements.txt
 ```
 
-**Structure Decision**: Keep the repository as a single Python project. `src/main.py` remains the business-logic core for rendering, OCR, SKU extraction, and PDF annotation, while new workflow adapters live under `src/worker/` so cloud orchestration concerns stay isolated from the proven linking logic.
+**Structure Decision**: Keep a single Python project. Reuse `src/main.py` as the domain pipeline entrypoint and isolate cloud-specific orchestration, routing, persistence, publication, and notification concerns inside `src/worker/`. Keep design contracts under `specs/001-automate-pdf-linking/contracts/` because the external interface for this feature is the orchestration payload boundary rather than a public HTTP API.
 
-## Complexity Tracking
+## Phase 0: Research Focus
 
-No constitution violations are currently defined, so no complexity exceptions are required.
+- Confirm the worker orchestration model for long-running PDFs.
+- Confirm the physical S3 bucket plus logical prefix layout implied by the spec.
+- Confirm the Magento authentication and URL-resolution rules: admin-token exchange or bearer-token reuse, store-code route, exact SKU filtering, `url_key` extraction, final `.html` URL shape, and unresolved-match handling.
+- Confirm persistence and artifact-retention strategy for diagnosable partial failures.
 
-## Phase 0 Research Summary
+## Phase 1: Design Focus
 
-Phase 0 outputs are recorded in `specs/001-automate-pdf-linking/research.md`.
-
-## Phase 1 Design Summary
-
-Phase 1 outputs are recorded in:
-
-- `specs/001-automate-pdf-linking/data-model.md`
-- `specs/001-automate-pdf-linking/contracts/worker-job.schema.json`
-- `specs/001-automate-pdf-linking/contracts/worker-result.schema.json`
-- `specs/001-automate-pdf-linking/contracts/workflow-contracts.md`
-- `specs/001-automate-pdf-linking/quickstart.md`
+- Model routing, processing, page-level diagnostics, resolved links, unresolved matches, publication artifacts, and notification outcomes.
+- Define the worker handoff/result contracts and document Magento authentication plus resolution semantics that affect worker behavior.
+- Capture an operator/developer quickstart that validates routing, worker execution, Magento URL generation, publication, and failure handling.
+- Refresh agent context after the design artifacts are updated.
 
 ## Post-Design Constitution Check
 
-The constitution file still contains placeholders only, so there are no enforceable post-design gates to evaluate. The design remains consistent with the repository's current lightweight Python CLI structure and adds only the minimum new modules required for asynchronous orchestration.
+- Re-checked after Phase 1 artifact updates.
+- No enforceable constitution gates exist yet, so the design remains PASS.
+- No justified violations were required.
 
-**Gate Result (post-design)**: PASS, with no enforceable constitution rules present.
+## Complexity Tracking
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+| --------- | ---------- | ----------------------------------- |
+| None | N/A | N/A |
