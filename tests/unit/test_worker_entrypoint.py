@@ -159,9 +159,37 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(ses_client.requests[0]["Source"], "noreply@example.com")
+
+    def test_build_notify_client_sends_to_multiple_secret_recipients_for_ses(self) -> None:
+        env = {
+            "NOTIFICATION_MODE": "ses",
+            "NOTIFICATION_SECRET_NAME": "flipping-pdf/notifications",
+        }
+        secrets_client = FakeSecretsClient(
+            {
+                "flipping-pdf/notifications": '{"recipient": "catalog-ops@example.com; merch-ops@example.com", "source": "noreply@example.com"}',
+            }
+        )
+        ses_client = FakeSesClient()
+
+        client = _build_notify_client_from_env(env, secrets_client=secrets_client, ses_client=ses_client)
+        client.send_success_notification(
+            job_id="job-001",
+            recipient_group="catalog-ops@example.com; merch-ops@example.com",
+            site_prefix="currentcatalog",
+            filename="catalog.pdf",
+            flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
+        )
+
+        self.assertEqual(
+            ses_client.requests[0]["Destination"]["ToAddresses"],
+            ["catalog-ops@example.com", "merch-ops@example.com"],
+        )
 
     def test_build_notify_client_uses_sns_topic_from_secret(self) -> None:
         env = {

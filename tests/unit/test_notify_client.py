@@ -27,6 +27,7 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(payload["notificationType"], "success")
@@ -35,6 +36,7 @@ class NotificationClientTests(unittest.TestCase):
         self.assertEqual(payload["filename"], "catalog.pdf")
         self.assertEqual(payload["finalStatus"], "completed")
         self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(payload["outputPdfUrl"], "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf")
         self.assertIsNone(payload["failureStage"])
         self.assertIsNone(payload["failureMessage"])
 
@@ -48,6 +50,7 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(len(sent_payloads), 1)
@@ -65,6 +68,7 @@ class NotificationClientTests(unittest.TestCase):
             failure_stage="publication",
             failure_message="Flipbook service rejected the PDF.",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(payload["notificationType"], "failure")
@@ -72,6 +76,7 @@ class NotificationClientTests(unittest.TestCase):
         self.assertEqual(payload["failureStage"], "publication")
         self.assertEqual(payload["failureMessage"], "Flipbook service rejected the PDF.")
         self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(payload["outputPdfUrl"], "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf")
 
     def test_send_failure_notification_calls_sender_with_payload(self) -> None:
         sent_payloads = []
@@ -86,6 +91,7 @@ class NotificationClientTests(unittest.TestCase):
             failure_stage="notification",
             failure_message="Email delivery failed.",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(len(sent_payloads), 1)
@@ -100,6 +106,7 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(
@@ -115,6 +122,7 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://cmg-catalog-book.s3.amazonaws.com/output/currentcatalog/catalog.pdf",
         )
         ses_client = FakeSesClient()
         sender = build_ses_sender(ses_client=ses_client, source_email="noreply@example.com")
@@ -123,6 +131,25 @@ class NotificationClientTests(unittest.TestCase):
 
         self.assertEqual(ses_client.requests[0]["Source"], "noreply@example.com")
         self.assertEqual(ses_client.requests[0]["Destination"]["ToAddresses"], ["catalog-ops@example.com"])
+
+    def test_build_ses_sender_splits_semicolon_separated_recipients(self) -> None:
+        payload = build_success_notification_payload(
+            job_id="job-notify-004b",
+            recipient_group="catalog-ops@example.com; merch-ops@example.com",
+            site_prefix="currentcatalog",
+            filename="catalog.pdf",
+            flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
+        )
+        ses_client = FakeSesClient()
+        sender = build_ses_sender(ses_client=ses_client, source_email="noreply@example.com")
+
+        sender(payload)
+
+        self.assertEqual(
+            ses_client.requests[0]["Destination"]["ToAddresses"],
+            ["catalog-ops@example.com", "merch-ops@example.com"],
+        )
 
     def test_build_sns_sender_publishes_to_topic(self) -> None:
         payload = build_failure_notification_payload(

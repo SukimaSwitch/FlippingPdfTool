@@ -96,6 +96,7 @@ class WorkflowContractTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="spring-2026-catalog.pdf",
             flipbook_url="https://flipbook.example.com/books/12345",
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
         )
 
         self.assertEqual(payload["jobId"], "job-notify-001")
@@ -105,6 +106,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["filename"], "spring-2026-catalog.pdf")
         self.assertEqual(payload["finalStatus"], "completed")
         self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(
+            payload["outputPdfUrl"],
+            "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
+        )
         self.assertIsNone(payload["failureStage"])
         self.assertIsNone(payload["failureMessage"])
 
@@ -132,6 +137,7 @@ class WorkflowContractTests(unittest.TestCase):
             failure_stage="publication",
             failure_message="Flipbook service rejected the PDF.",
             flipbook_url=None,
+            output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
         )
 
         self.assertEqual(payload["jobId"], "job-failure-001")
@@ -141,6 +147,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["failureStage"], "publication")
         self.assertEqual(payload["failureMessage"], "Flipbook service rejected the PDF.")
         self.assertIsNone(payload["flipbookUrl"])
+        self.assertEqual(
+            payload["outputPdfUrl"],
+            "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
+        )
 
 
 if __name__ == "__main__":

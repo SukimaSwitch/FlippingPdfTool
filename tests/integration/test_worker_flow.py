@@ -271,6 +271,10 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(repository.publications[0]["flipbook_url"], "https://flipbook.example.com/books/12345")
             self.assertEqual(notify_client.payloads[0]["notificationType"], "success")
             self.assertEqual(notify_client.payloads[0]["flipbookUrl"], "https://flipbook.example.com/books/12345")
+            self.assertEqual(
+                notify_client.payloads[0]["outputPdfUrl"],
+                "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
+            )
             self.assertEqual(repository.notifications[0]["notification_payload"]["finalStatus"], "completed")
 
     def test_rejected_prefix_fails_before_processing(self) -> None:
@@ -364,6 +368,10 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(repository.final_states[-1]["final_status"], "partial-success")
             self.assertEqual(repository.final_states[-1]["failure_stage"], "publication")
             self.assertEqual(notify_client.payloads[-1]["finalStatus"], "partial-success")
+            self.assertEqual(
+                notify_client.payloads[-1]["outputPdfUrl"],
+                "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
+            )
 
     def test_missing_publication_configuration_records_expected_partial_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -403,6 +411,10 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(repository.final_states[-1]["failure_code"], "publication-not-configured")
             self.assertEqual(notify_client.payloads[-1]["notificationType"], "failure")
             self.assertEqual(notify_client.payloads[-1]["failureStage"], "publication")
+            self.assertEqual(
+                notify_client.payloads[-1]["outputPdfUrl"],
+                "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
+            )
 
     def test_notification_failure_preserves_flipbook_and_records_partial_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -461,7 +473,16 @@ class StubNotifyClient:
     def __init__(self):
         self.payloads = []
 
-    def send_success_notification(self, *, job_id: str, recipient_group: str, site_prefix: str, filename: str, flipbook_url: str):
+    def send_success_notification(
+        self,
+        *,
+        job_id: str,
+        recipient_group: str,
+        site_prefix: str,
+        filename: str,
+        flipbook_url: str,
+        output_pdf_url: str = None,
+    ):
         payload = {
             "jobId": job_id,
             "notificationType": "success",
@@ -470,6 +491,7 @@ class StubNotifyClient:
             "filename": filename,
             "finalStatus": "completed",
             "flipbookUrl": flipbook_url,
+            "outputPdfUrl": output_pdf_url,
             "failureStage": None,
             "failureMessage": None,
         }
@@ -487,6 +509,7 @@ class StubNotifyClient:
         failure_stage: str,
         failure_message: str,
         flipbook_url: str = None,
+        output_pdf_url: str = None,
     ):
         payload = {
             "jobId": job_id,
@@ -496,6 +519,7 @@ class StubNotifyClient:
             "filename": filename,
             "finalStatus": final_status,
             "flipbookUrl": flipbook_url,
+            "outputPdfUrl": output_pdf_url,
             "failureStage": failure_stage,
             "failureMessage": failure_message,
         }

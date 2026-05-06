@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional
-from urllib.parse import unquote_plus
+from urllib.parse import quote, unquote_plus
 
 import boto3
 
@@ -75,6 +75,13 @@ def _required_env(env: Mapping[str, str], name: str) -> str:
 
 def _normalize_source_key(source_key: str) -> str:
     return unquote_plus(source_key)
+
+
+def _build_s3_object_url(*, bucket: str, key: str, region_name: Optional[str] = None) -> str:
+    region = (region_name or os.environ.get("AWS_REGION") or "us-east-1").strip()
+    encoded_bucket = quote(bucket, safe="")
+    encoded_key = quote(key, safe="/")
+    return f"https://{region}.console.aws.amazon.com/s3/object/{encoded_bucket}?region={region}&prefix={encoded_key}"
 
 
 def _build_job_payload_from_env(
@@ -347,6 +354,10 @@ def process_worker_job(
                     failure_stage="publication",
                     failure_message=failure_message,
                     flipbook_url=None,
+                    output_pdf_url=_build_s3_object_url(
+                        bucket=job.output_bucket,
+                        key=job.output_key,
+                    ),
                 )
                 repository.record_notification_result(
                     job_id=job.job_id,
@@ -388,6 +399,10 @@ def process_worker_job(
                     failure_stage="publication",
                     failure_message=str(exc),
                     flipbook_url=None,
+                    output_pdf_url=_build_s3_object_url(
+                        bucket=job.output_bucket,
+                        key=job.output_key,
+                    ),
                 )
                 repository.record_notification_result(
                     job_id=job.job_id,
@@ -413,6 +428,10 @@ def process_worker_job(
                     site_prefix=job.site_configuration.site_prefix,
                     filename=job.filename,
                     flipbook_url=publication["flipbookUrl"],
+                    output_pdf_url=_build_s3_object_url(
+                        bucket=job.output_bucket,
+                        key=job.output_key,
+                    ),
                 )
                 repository.record_notification_result(
                     job_id=job.job_id,
