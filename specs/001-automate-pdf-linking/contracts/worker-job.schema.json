@@ -118,10 +118,6 @@
     "notificationGroup": {
       "type": "string",
       "description": "Configured stakeholder notification target for success or failure outcomes."
-    },
-    "flipbookProfile": {
-      "type": "string",
-      "description": "Optional publication profile identifier for the flipbook service."
     }
   }
 }

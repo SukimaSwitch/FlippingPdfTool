@@ -5,7 +5,7 @@
 
 ## Summary
 
- Automate catalog PDF processing by routing uploads from `cmg-catalog-book/input/<site-prefix>/...` into a site-aware worker workflow that reuses the existing page-by-page PDF-linking pipeline, writes linked PDFs to `cmg-catalog-book/output/<site-prefix>/...`, publishes the linked artifact as a flipbook, and sends stakeholder notifications. Magento lookups remain site-specific and must authenticate first, either with a preissued bearer token or by exchanging configured username/password credentials through `POST /rest/V1/integration/admin/token`, then use the store-code product route, require an exact SKU match from the response, extract `url_key` from `custom_attributes`, and build the final customer URL as `https://<domain>/<url_key>.html`; exact matches without `url_key` stay unlinked and are recorded as unresolved matches.
+ Automate catalog PDF processing by routing uploads from `cmg-catalog-book/input/<site-prefix>/...` into a site-aware worker workflow that reuses the existing page-by-page PDF-linking pipeline, writes linked PDFs to `cmg-catalog-book/output/<site-prefix>/...`, and sends stakeholder notifications. Magento lookups remain site-specific and must authenticate first, either with a preissued bearer token or by exchanging configured username/password credentials through `POST /rest/V1/integration/admin/token`, then use the store-code product route, require an exact SKU match from the response, extract `url_key` from `custom_attributes`, and build the final customer URL as `https://<domain>/<url_key>.html`; exact matches without `url_key` stay unlinked and are recorded as unresolved matches.
 
 ## Technical Context
 
@@ -59,7 +59,6 @@ src/
   ├── models.py
   ├── notify_client.py
   ├── pipeline_runner.py
-  ├── publish_client.py
   ├── routing.py
   └── storage_client.py
 
@@ -74,7 +73,7 @@ static/
 └── Requirements.txt
 ```
 
-**Structure Decision**: Keep a single Python project. Reuse `src/main.py` as the domain pipeline entrypoint and isolate cloud-specific orchestration, routing, persistence, publication, and notification concerns inside `src/worker/`. Keep design contracts under `specs/001-automate-pdf-linking/contracts/` because the external interface for this feature is the orchestration payload boundary rather than a public HTTP API.
+**Structure Decision**: Keep a single Python project. Reuse `src/main.py` as the domain pipeline entrypoint and isolate cloud-specific orchestration, routing, persistence, manual-upload handoff, and notification concerns inside `src/worker/`. Keep design contracts under `specs/001-automate-pdf-linking/contracts/` because the external interface for this feature is the orchestration payload boundary rather than a public HTTP API.
 
 ## Phase 0: Research Focus
 
@@ -85,9 +84,9 @@ static/
 
 ## Phase 1: Design Focus
 
-- Model routing, processing, page-level diagnostics, resolved links, unresolved matches, publication artifacts, and notification outcomes.
+- Model routing, processing, page-level diagnostics, resolved links, unresolved matches, exported PDF artifacts, and notification outcomes.
 - Define the worker handoff/result contracts and document Magento authentication plus resolution semantics that affect worker behavior.
-- Capture an operator/developer quickstart that validates routing, worker execution, Magento URL generation, publication, and failure handling.
+- Capture an operator/developer quickstart that validates routing, worker execution, Magento URL generation, exported-PDF access, and failure handling.
 - Refresh agent context after the design artifacts are updated.
 
 ## Post-Design Constitution Check

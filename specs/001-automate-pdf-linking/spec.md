@@ -3,7 +3,7 @@
 **Feature Branch**: `[001-automate-pdf-linking]`  
 **Created**: 2026-04-23  
 **Status**: Draft  
-**Input**: User description: "Automate the workflow that turns an uploaded catalog PDF into a linked output PDF, publishes it as a flipbook, notifies stakeholders, and records job outcomes."
+**Input**: User description: "Automate the workflow that turns an uploaded catalog PDF into a linked output PDF, notifies stakeholders, and records job outcomes."
 
 ## Clarifications
 
@@ -37,18 +37,18 @@ As a catalog operations manager, I want an uploaded catalog PDF to be processed 
 
 ---
 
-### User Story 2 - Publish the linked catalog and notify stakeholders (Priority: P2)
+### User Story 2 - Deliver the linked catalog and notify stakeholders (Priority: P2)
 
-As a marketing stakeholder, I want the finished linked PDF to be published as an online flipbook and shared automatically so that the team can review or distribute the finished catalog immediately.
+As a marketing stakeholder, I want the finished linked PDF to be exported and shared automatically so that the team can review or distribute the finished catalog immediately.
 
-**Why this priority**: Publishing and notification turn the processed file into a usable business deliverable and remove manual follow-up work after processing.
+**Why this priority**: Export and notification turn the processed file into a usable business deliverable and remove manual follow-up work after processing.
 
-**Independent Test**: Complete a successful processing run and verify that an online flipbook is generated from the processed PDF and that the configured email group receives the flipbook URL together with the job outcome.
+**Independent Test**: Complete a successful processing run and verify that the processed PDF is exported to S3 and that the configured email group receives the output PDF URL together with the job outcome.
 
 **Acceptance Scenarios**:
 
-1. **Given** a processed PDF is available, **When** publication is requested, **Then** the system submits that processed PDF to the configured flipbook service and captures the resulting publication URL.
-2. **Given** the flipbook is created successfully, **When** the job finishes, **Then** the configured email group receives a success notification that includes the source filename, processing result, and flipbook URL.
+1. **Given** a processed PDF is available, **When** export completes, **Then** the system stores that processed PDF at the configured routed S3 output location.
+2. **Given** the output PDF is written successfully, **When** the job finishes, **Then** the configured email group receives a success notification that includes the source filename, processing result, and output PDF URL.
 
 ---
 
@@ -58,12 +58,12 @@ As a support or operations user, I want failures and partial results to be recor
 
 **Why this priority**: The workflow touches several external systems and long-running document work. Clear visibility reduces recovery time and operational risk.
 
-**Independent Test**: Trigger representative failures such as an unreadable PDF, missing product matches, publication failure, or notification failure, and verify that the job records a clear outcome and sends an error notification with useful details.
+**Independent Test**: Trigger representative failures such as an unreadable PDF, missing product matches, or notification failure, and verify that the job records a clear outcome and sends an error notification with useful details.
 
 **Acceptance Scenarios**:
 
 1. **Given** processing fails before the output PDF is produced, **When** the job ends, **Then** the system records the failure reason and sends a failure notification containing the file name and error details.
-2. **Given** PDF processing succeeds but a later publication or notification step fails, **When** the workflow completes, **Then** the system records which stage failed and preserves the successfully produced artifacts created before that failure.
+2. **Given** PDF processing succeeds but notification delivery later fails, **When** the workflow completes, **Then** the system records which stage failed and preserves the successfully produced artifacts created before that failure.
 
 ### Edge Cases
 
@@ -74,7 +74,6 @@ As a support or operations user, I want failures and partial results to be recor
 - A Magento lookup returns partial or multiple non-exact SKU candidates, and the system must ignore those candidates unless one product SKU exactly matches the detected catalog SKU.
 - A Magento product exactly matches the detected SKU but does not provide a `url_key`, so the related image and description must remain unlinked and the unresolved match must be recorded for triage.
 - The same SKU appears multiple times on a page and each matching image-description pair must receive the correct link.
-- The processed PDF is created successfully, but the flipbook service rejects the upload or does not return a publication URL.
 - The workflow completes or fails, but the notification email cannot be delivered.
 - A duplicate upload uses the same filename as an earlier job and must not make the final job status ambiguous.
 
@@ -102,14 +101,12 @@ As a support or operations user, I want failures and partial results to be recor
 - **FR-008**: The system MUST support background processing for large uploaded PDFs so the job can continue to completion without requiring the upload event itself to remain active for the full processing duration.
 - **FR-009**: The system MUST write the processed PDF to the configured output location using the same filename as the source PDF.
 - **FR-009a**: The configured output location MUST be the `cmg-catalog-book/output` bucket, and processed PDFs MUST be written to the site-matching prefix that corresponds to the input prefix.
-- **FR-010**: The system MUST submit the processed PDF to the configured flipbook publishing service after the output PDF is created.
-- **FR-011**: The system MUST capture the resulting flipbook URL when publication succeeds and associate it with the processing job result.
-- **FR-012**: The system MUST send a success notification to the configured email group after a fully successful run, including at minimum the source filename, overall processing result, and flipbook URL.
-- **FR-013**: The system MUST send a failure notification to the configured email group whenever any stage of the workflow fails, including at minimum the source filename, failed stage, and error details sufficient for triage.
-- **FR-014**: The system MUST log major workflow stages, page-level progress, external service call outcomes, and error conditions for each processing job.
-- **FR-015**: The system MUST retain enough job metadata to distinguish source file ingestion, PDF processing, output storage, publication, notification, and final job status.
-- **FR-016**: The system MUST ensure that failure in a downstream step does not erase or invalidate artifacts that were already created successfully earlier in the same job.
-- **FR-017**: The system MUST reject any uploaded PDF whose source key does not match one of the supported site prefixes and mark the job as failed during ingest/routing before PDF processing begins.
+- **FR-010**: The system MUST send a success notification to the configured email group after a fully successful run, including at minimum the source filename, overall processing result, and output PDF URL.
+- **FR-011**: The system MUST send a failure notification to the configured email group whenever any stage of the workflow fails, including at minimum the source filename, failed stage, and error details sufficient for triage.
+- **FR-012**: The system MUST log major workflow stages, page-level progress, external service call outcomes, and error conditions for each processing job.
+- **FR-013**: The system MUST retain enough job metadata to distinguish source file ingestion, PDF processing, output storage, notification, and final job status.
+- **FR-014**: The system MUST ensure that failure in a downstream step does not erase or invalidate artifacts that were already created successfully earlier in the same job.
+- **FR-015**: The system MUST reject any uploaded PDF whose source key does not match one of the supported site prefixes and mark the job as failed during ingest/routing before PDF processing begins.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -120,16 +117,16 @@ As a support or operations user, I want failures and partial results to be recor
 - **Product Match**: The association between a detected product identifier, its resolved product URL, the image region to link, and the description region to link.
 - **Unresolved Product Match**: A detected SKU or exact Magento product candidate that could not be converted into a final product URL because a required field such as `url_key` was missing.
 - **Magento Product Response**: The product lookup payload that includes product identity fields and a `custom_attributes` collection from which the `url_key` value is extracted.
-- **Published Output**: The finished linked PDF and any resulting online publication URL associated with a completed processing job.
+- **Published Output**: The finished linked PDF associated with a completed processing job.
 - **Notification Record**: The delivery payload and outcome for stakeholder notifications sent for success or failure states.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: For successful jobs, 100% of processed PDFs that are published produce a usable flipbook URL included in the stakeholder notification.
+- **SC-001**: For successful jobs, 100% of processed PDFs that are exported successfully produce a usable output PDF URL included in the stakeholder notification.
 - **SC-002**: 100% of failed jobs generate a notification and a recorded failure reason identifying the stage where the workflow stopped.
-- **SC-003**: 100% of successful job notifications include the source filename, final job result, and the published flipbook URL.
+- **SC-003**: 100% of successful job notifications include the source filename, final job result, and the exported PDF URL.
 - **SC-004**: The workflow successfully accepts and completes processing for uploaded catalog PDFs larger than 70 MB and exceeding 80 pages when the input file is otherwise valid.
 - **SC-005**: The workflow does not fail solely because processing exceeds a predefined execution-time limit; long-running jobs remain eligible to continue until they complete or encounter a functional error.
 
@@ -146,5 +143,5 @@ As a support or operations user, I want failures and partial results to be recor
 - For in-scope Magento responses, the canonical product page slug is supplied as the `url_key` entry inside `custom_attributes`, and the final customer-facing URL is derived by combining that slug with the site-specific domain and the `.html` suffix.
 - If an exact-match Magento product omits `url_key`, the workflow records that condition for follow-up and does not fail the full PDF job solely because of that missing field.
 - Catalog PDFs in scope may exceed 70 MB and 80 pages, and long-running processing is acceptable for valid jobs.
-- The configured email group, publication account, and service credentials are available before processing begins.
+- The configured email group and notification service credentials are available before processing begins.
 - This feature covers automated processing of one uploaded PDF per job and does not include a manual review or correction interface.

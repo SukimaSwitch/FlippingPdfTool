@@ -23,13 +23,12 @@ Minimum AWS prerequisites:
 - An S3 bucket layout that uses `cmg-catalog-book` with `input/` and `output/` prefixes.
 - AWS access for S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and CloudWatch.
 - A DynamoDB table for durable processing-job state.
-- Secrets Manager entries for any Magento, flipbook, and notification credentials.
+- Secrets Manager entries for any Magento and notification credentials.
 - An ECS task definition that injects worker environment variables and secrets.
 
 Required third-party configuration:
 
 - Magento base route access for each supported store code: `currentcatalog`, `colorfulimages`, and `lillianvernon`.
-- Flipbook API credentials and target publication settings.
 - A notification target using SES or SNS plus the stakeholder email group or topic mapping.
 
 For a guided setup, see `specs/001-automate-pdf-linking/aws-beginner-setup.md`. For deployable AWS artifacts, see `aws/templates/README.md`.
@@ -58,9 +57,6 @@ Common optional worker variables:
 - `MAGENTO_SECRET_NAME`: Secrets Manager secret name containing Magento connection settings such as host and credentials.
 - `MAGENTO_SEARCH_BASE_URL`: Optional override for the Magento API origin when it differs from `PUBLIC_DOMAIN`.
 - `MAGENTO_BEARER_TOKEN_SECRET_NAME`: Secrets Manager secret name for Magento API authentication.
-- `FLIPBOOK_API_BASE_URL`: Flipbook API origin.
-- `FLIPBOOK_SECRET_NAME`: Secrets Manager secret name containing flipbook connection settings such as URL and API key.
-- `FLIPBOOK_API_SECRET_NAME`: Secrets Manager secret name for flipbook credentials.
 - `NOTIFICATION_MODE`: Notification adapter selection such as `ses` or `sns`.
 - `NOTIFICATION_TARGET`: Email address, group alias, or SNS topic ARN used for job notifications.
 - `NOTIFICATION_SECRET_NAME`: Secrets Manager secret name containing notification defaults such as the recipient address.
@@ -115,17 +111,16 @@ Expected behavior:
 - Magento lookups only link exact SKU matches and build final customer URLs from `custom_attributes.url_key` using the routed storefront template: `currentcatalog` and `colorfulimages` use `https://<domain>/buy/<url_key>.html`, while `lillianvernon` uses `https://<domain>/goods/<url_key>.html`.
 - Exact SKU matches without `url_key` remain unlinked and are recorded as unresolved matches.
 - The container runtime can now bootstrap worker jobs directly from environment variables and Secrets Manager when launched with `python -m src.worker.entrypoint`.
-- Publication and notification stages run inside the worker once the relevant clients are configured.
+- The worker writes the linked PDF to S3 and treats that exported artifact as a successful processing outcome.
 - Failure notifications now fire for rejected-routing and processing-stage failures when notification delivery is configured.
-- Partial-success outcomes preserve the linked PDF and record the failed downstream stage.
-- If flipbook publication is not configured, the worker now records an expected publication-stage partial success and can still send a failure notification for that condition.
+- Success notifications include the output PDF URL so operators can access the exported file directly.
+- Partial-success outcomes are limited to downstream notification delivery failures after the PDF has already been exported.
 
 Staging note:
 
-- If the flipbook secret is blank, routed linking and artifact persistence can still be staged; the worker records a publication-stage partial success and can notify operators about that expected exception.
 - A notification recipient secret provides the target address only; actual SES or SNS delivery still depends on a real sender or topic configuration in the deployed environment.
 - For SES delivery, the runtime now fails fast unless it can resolve a sender email from `NOTIFICATION_SOURCE` or `NOTIFICATION_SECRET_NAME.source`.
-- Success notifications still depend on publication success, so they remain unavailable until the flipbook secret and notification secret are updated with live environment values.
+- Automatic third-party upload has been removed from the worker runtime.
 
 ## Usage
 
@@ -199,5 +194,5 @@ Current validated coverage includes:
 - Shared CLI and worker pipeline reuse
 - Accepted-route processing and matched output routing
 - Exact-SKU Magento matching plus unresolved `url_key` handling
-- Publication and success notification flow
-- Rejected-prefix, invalid-PDF, publication-failure, and notification-failure handling
+- Success notification flow after routed S3 output write
+- Rejected-prefix, invalid-PDF, and notification-failure handling

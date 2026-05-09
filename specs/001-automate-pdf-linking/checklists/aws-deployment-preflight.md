@@ -24,9 +24,9 @@
 
 - [ ] `flipping-pdf/magento` exists and contains a Magento API host, not a public storefront domain.
 - [ ] `flipping-pdf/magento` contains either `username` plus `password`, or `bearer_token`.
-- [ ] `flipping-pdf/flipbook` exists, even if its live values are not ready yet.
+- [ ] The deployed ECS task definition no longer injects `FLIPBOOK_SECRET_NAME`.
 - [ ] `flipping-pdf/notifications` exists, even if its live values are not ready yet.
-- [ ] Operators understand that full publication and success-notification validation must wait until live flipbook and notification secret values are installed.
+- [ ] Operators understand that success is defined by routed S3 output plus notification delivery, not by any removed downstream upload step.
 
 ## ECS Runtime Wiring
 
@@ -59,15 +59,15 @@
 
 - [x] A known-good sample PDF is ready for `input/currentcatalog/sample-catalog.pdf`.
 - [x] Operators know the expected first-pass checks: Step Functions start, ECS task launch, DynamoDB job record creation, linked PDF written to `output/currentcatalog/sample-catalog.pdf`, and CloudWatch logs available.
-- [x] Operators do not treat missing flipbook publication or success notification as a worker-path failure while live secret values are still pending.
+- [x] Operators do not treat the removed downstream upload step as part of the worker-path success criteria.
 
 ## Follow-Up Validation
 
 - [ ] After the happy path, an unsupported-prefix upload test is planned.
 - [ ] After the happy path, an invalid-PDF failure test is planned.
-- [ ] After live flipbook and notification secret values are installed, a separate publication and notification success-path test is planned.
+- [ ] After deployment, a smoke test verifies successful export plus success notification in AWS.
 
 ## Notes
 
 - This checklist assumes AWS infrastructure was provisioned manually and is intended to reduce configuration drift before the first live upload test.
-- The core worker path is considered deployable when this checklist is satisfied, even if publication and notification live values are staged later.
+- The core worker path is considered deployable when this checklist is satisfied and success is verified by exported output plus notification delivery.

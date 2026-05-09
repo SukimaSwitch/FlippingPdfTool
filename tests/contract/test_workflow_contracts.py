@@ -3,7 +3,6 @@ import unittest
 
 from src.worker.models import WorkerResult
 from src.worker.notify_client import build_failure_notification_payload, build_success_notification_payload
-from src.worker.publish_client import build_publication_request
 from src.worker.routing import route_source_object
 from src.worker.routing import build_worker_job
 
@@ -16,7 +15,6 @@ class WorkflowContractTests(unittest.TestCase):
             source_key="input/currentcatalog/spring-2026-catalog.pdf",
             triggered_at="2026-04-28T12:00:00Z",
             notification_group="catalog-ops@example.com",
-            flipbook_profile="default",
         )
 
         payload = job.to_dict()
@@ -46,7 +44,6 @@ class WorkflowContractTests(unittest.TestCase):
             "https://www.currentcatalog.com/buy/{url_key}.html",
         )
         self.assertEqual(payload["notificationGroup"], "catalog-ops@example.com")
-        self.assertEqual(payload["flipbookProfile"], "default")
 
         self.assertTrue(re.match(r"^\d{4}-\d{2}-\d{2}T", payload["triggeredAt"]))
 
@@ -74,28 +71,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["unresolvedMatchCount"], 2)
         self.assertEqual(payload["linkCount"], 296)
 
-    def test_publication_request_matches_us2_contract(self) -> None:
-        request = build_publication_request(
-            job_id="job-publish-001",
-            site_prefix="currentcatalog",
-            pdf_bucket="cmg-catalog-book",
-            pdf_key="output/currentcatalog/spring-2026-catalog.pdf",
-            filename="spring-2026-catalog.pdf",
-        )
-
-        self.assertEqual(request["jobId"], "job-publish-001")
-        self.assertEqual(request["sitePrefix"], "currentcatalog")
-        self.assertEqual(request["pdfBucket"], "cmg-catalog-book")
-        self.assertEqual(request["pdfKey"], "output/currentcatalog/spring-2026-catalog.pdf")
-        self.assertEqual(request["filename"], "spring-2026-catalog.pdf")
-
     def test_success_notification_payload_matches_us2_contract(self) -> None:
         payload = build_success_notification_payload(
             job_id="job-notify-001",
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="spring-2026-catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
         )
 
@@ -104,8 +85,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["recipientGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["sitePrefix"], "currentcatalog")
         self.assertEqual(payload["filename"], "spring-2026-catalog.pdf")
-        self.assertEqual(payload["finalStatus"], "completed")
-        self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(payload["finalStatus"], "success")
+        self.assertNotIn("flipbookUrl", payload)
         self.assertEqual(
             payload["outputPdfUrl"],
             "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
@@ -134,9 +115,8 @@ class WorkflowContractTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="spring-2026-catalog.pdf",
             final_status="partial-success",
-            failure_stage="publication",
-            failure_message="Flipbook service rejected the PDF.",
-            flipbook_url=None,
+            failure_stage="notification",
+            failure_message="Notification delivery failed.",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
         )
 
@@ -144,9 +124,9 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(payload["notificationType"], "failure")
         self.assertEqual(payload["recipientGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["finalStatus"], "partial-success")
-        self.assertEqual(payload["failureStage"], "publication")
-        self.assertEqual(payload["failureMessage"], "Flipbook service rejected the PDF.")
-        self.assertIsNone(payload["flipbookUrl"])
+        self.assertEqual(payload["failureStage"], "notification")
+        self.assertEqual(payload["failureMessage"], "Notification delivery failed.")
+        self.assertNotIn("flipbookUrl", payload)
         self.assertEqual(
             payload["outputPdfUrl"],
             "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",

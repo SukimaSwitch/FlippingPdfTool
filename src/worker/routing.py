@@ -111,7 +111,6 @@ def build_worker_job(
     correlation_id: Optional[str] = None,
     requested_by: Optional[str] = None,
     notification_group: Optional[str] = None,
-    flipbook_profile: Optional[str] = None,
 ) -> WorkerJob:
     routing = route_source_object(job_id=job_id, source_bucket=source_bucket, source_key=source_key)
     if isinstance(routing, RejectedRouting):
@@ -134,8 +133,6 @@ def build_worker_job(
         payload["requestedBy"] = requested_by
     if notification_group:
         payload["notificationGroup"] = notification_group
-    if flipbook_profile:
-        payload["flipbookProfile"] = flipbook_profile
     return WorkerJob.from_dict(payload)
 
 

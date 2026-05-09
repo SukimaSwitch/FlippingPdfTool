@@ -17,7 +17,6 @@ from .job_repository import JobRepository
 from .models import WorkerJob, WorkerResult
 from .notify_client import NotificationClient, build_ses_sender, build_sns_sender
 from .pipeline_runner import run_worker_pipeline
-from .publish_client import FlipbookPublishClient
 from .routing import RejectedRouting, build_worker_job, route_source_object
 from .storage_client import S3StorageClient
 
@@ -105,8 +104,6 @@ def _build_job_payload_from_env(
         payload["correlationId"] = env["CORRELATION_ID"]
     if env.get("REQUESTED_BY"):
         payload["requestedBy"] = env["REQUESTED_BY"]
-    if env.get("FLIPBOOK_PROFILE"):
-        payload["flipbookProfile"] = env["FLIPBOOK_PROFILE"]
     return payload
 
 
@@ -128,15 +125,6 @@ def _build_catalog_client_from_env(env: Mapping[str, str], *, secrets_client: An
         username=username,
         password=password,
     )
-
-
-def _build_publish_client_from_env(env: Mapping[str, str], *, secrets_client: Any) -> Optional[FlipbookPublishClient]:
-    flipbook_secret = _optional_secret_dict(env.get("FLIPBOOK_SECRET_NAME"), secrets_client=secrets_client)
-    api_url = _normalize_base_url(env.get("FLIPBOOK_API_BASE_URL") or flipbook_secret.get("url"))
-    api_key = env.get("FLIPBOOK_API_KEY") or flipbook_secret.get("api_key")
-    if not api_url or not api_key:
-        return None
-    return FlipbookPublishClient(api_url=api_url, api_key=api_key)
 
 
 def _build_notify_client_from_env(
@@ -194,7 +182,6 @@ def process_worker_request(
     *,
     storage_client: Optional[Any] = None,
     catalog_client: Optional[Any] = None,
-    publish_client: Optional[Any] = None,
     notify_client: Optional[Any] = None,
     job_repository: Optional[Any] = None,
     pipeline_runner: Callable[..., Dict[str, Any]] = run_worker_pipeline,
@@ -232,7 +219,6 @@ def process_worker_request(
                 final_status="failed",
                 failure_stage=decision.failure_stage,
                 failure_message=decision.failure_message,
-                flipbook_url=None,
             )
             repository.record_notification_result(
                 job_id=normalized_payload["jobId"],
@@ -250,13 +236,11 @@ def process_worker_request(
         correlation_id=normalized_payload.get("correlationId"),
         requested_by=normalized_payload.get("requestedBy"),
         notification_group=normalized_payload.get("notificationGroup"),
-        flipbook_profile=normalized_payload.get("flipbookProfile"),
     )
     return process_worker_job(
         job,
         storage_client=storage_client,
         catalog_client=catalog_client,
-        publish_client=publish_client,
         notify_client=notify_client,
         job_repository=repository,
         pipeline_runner=pipeline_runner,
@@ -269,7 +253,6 @@ def process_worker_job(
     *,
     storage_client: Optional[Any] = None,
     catalog_client: Optional[Any] = None,
-    publish_client: Optional[Any] = None,
     notify_client: Optional[Any] = None,
     job_repository: Optional[Any] = None,
     pipeline_runner: Callable[..., Dict[str, Any]] = run_worker_pipeline,
@@ -342,84 +325,10 @@ def process_worker_job(
             retention_days=30,
         )
 
-        if publish_client is None:
-            failure_message = "Flipbook publication is not configured for this worker run."
-            if job.notification_group:
-                notification_payload = notifier.send_failure_notification(
-                    job_id=job.job_id,
-                    recipient_group=job.notification_group,
-                    site_prefix=job.site_configuration.site_prefix,
-                    filename=job.filename,
-                    final_status="partial-success",
-                    failure_stage="publication",
-                    failure_message=failure_message,
-                    flipbook_url=None,
-                    output_pdf_url=_build_s3_object_url(
-                        bucket=job.output_bucket,
-                        key=job.output_key,
-                    ),
-                )
-                repository.record_notification_result(
-                    job_id=job.job_id,
-                    notification_payload=notification_payload,
-                    recorded_at=_utc_now(),
-                )
-            repository.record_terminal_summary(
-                job_id=job.job_id,
-                final_status="partial-success",
-                failure_stage="publication",
-                failure_code="publication-not-configured",
-                failure_message=failure_message,
-                dedupe_key=dedupe_key,
-                recorded_at=_utc_now(),
-            )
-            return result
-
-        try:
-            publication = publish_client.publish_pdf(
-                job_id=job.job_id,
-                site_prefix=job.site_configuration.site_prefix,
-                pdf_bucket=job.output_bucket,
-                pdf_key=job.output_key,
-                filename=job.filename,
-            )
-            repository.record_publication_result(
-                job_id=job.job_id,
-                flipbook_url=publication["flipbookUrl"],
-                recorded_at=_utc_now(),
-            )
-        except Exception as exc:
-            if job.notification_group:
-                notification_payload = notifier.send_failure_notification(
-                    job_id=job.job_id,
-                    recipient_group=job.notification_group,
-                    site_prefix=job.site_configuration.site_prefix,
-                    filename=job.filename,
-                    final_status="partial-success",
-                    failure_stage="publication",
-                    failure_message=str(exc),
-                    flipbook_url=None,
-                    output_pdf_url=_build_s3_object_url(
-                        bucket=job.output_bucket,
-                        key=job.output_key,
-                    ),
-                )
-                repository.record_notification_result(
-                    job_id=job.job_id,
-                    notification_payload=notification_payload,
-                    recorded_at=_utc_now(),
-                )
-            repository.record_terminal_summary(
-                job_id=job.job_id,
-                final_status="partial-success",
-                failure_stage="publication",
-                failure_code="publication-failed",
-                failure_message=str(exc),
-                dedupe_key=dedupe_key,
-                recorded_at=_utc_now(),
-            )
-            return result
-
+        output_pdf_url = _build_s3_object_url(
+            bucket=job.output_bucket,
+            key=job.output_key,
+        )
         if job.notification_group:
             try:
                 notification_payload = notifier.send_success_notification(
@@ -427,11 +336,7 @@ def process_worker_job(
                     recipient_group=job.notification_group,
                     site_prefix=job.site_configuration.site_prefix,
                     filename=job.filename,
-                    flipbook_url=publication["flipbookUrl"],
-                    output_pdf_url=_build_s3_object_url(
-                        bucket=job.output_bucket,
-                        key=job.output_key,
-                    ),
+                    output_pdf_url=output_pdf_url,
                 )
                 repository.record_notification_result(
                     job_id=job.job_id,
@@ -449,6 +354,12 @@ def process_worker_job(
                     recorded_at=_utc_now(),
                 )
                 return result
+        repository.record_terminal_summary(
+            job_id=job.job_id,
+            final_status="success",
+            dedupe_key=dedupe_key,
+            recorded_at=_utc_now(),
+        )
         return result
     except Exception as exc:
         failed_stage = "processing" if worker_run_id is not None else "download"
@@ -472,7 +383,6 @@ def process_worker_job(
                 final_status="failed",
                 failure_stage=failed_stage,
                 failure_message=str(exc),
-                flipbook_url=None,
             )
             repository.record_notification_result(
                 job_id=job.job_id,
@@ -489,13 +399,11 @@ def main(env: Optional[Mapping[str, str]] = None, *, secrets_client: Optional[An
     payload = _build_job_payload_from_env(runtime_env, secrets_client=secrets)
     repository = _build_job_repository_from_env(runtime_env)
     catalog_client = _build_catalog_client_from_env(runtime_env, secrets_client=secrets)
-    publish_client = _build_publish_client_from_env(runtime_env, secrets_client=secrets)
     notify_client = _build_notify_client_from_env(runtime_env, secrets_client=secrets)
 
     result = process_worker_request(
         payload,
         catalog_client=catalog_client,
-        publish_client=publish_client,
         notify_client=notify_client,
         job_repository=repository,
     )

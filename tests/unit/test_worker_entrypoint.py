@@ -1,6 +1,6 @@
 import unittest
 
-from src.worker.entrypoint import _build_catalog_client_from_env, _build_job_payload_from_env, _build_job_repository_from_env, _build_notify_client_from_env, _build_publish_client_from_env
+from src.worker.entrypoint import _build_catalog_client_from_env, _build_job_payload_from_env, _build_job_repository_from_env, _build_notify_client_from_env
 
 
 class FakeSecretsClient:
@@ -118,20 +118,6 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
         self.assertEqual(client._session.headers["Authorization"], "Bearer secret-token")
         self.assertIsNone(client._token_provider)
 
-    def test_build_publish_client_returns_none_when_flipbook_secret_is_blank(self) -> None:
-        env = {
-            "FLIPBOOK_SECRET_NAME": "flipping-pdf/flipbook",
-        }
-        secrets_client = FakeSecretsClient(
-            {
-                "flipping-pdf/flipbook": '{"url": "", "api_key": ""}',
-            }
-        )
-
-        client = _build_publish_client_from_env(env, secrets_client=secrets_client)
-
-        self.assertIsNone(client)
-
     def test_build_job_repository_uses_configured_table_name(self) -> None:
         repository = _build_job_repository_from_env(
             {"DYNAMODB_TABLE_NAME": "FlippingPdfJobs-Staging"},
@@ -158,7 +144,6 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
@@ -182,7 +167,6 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com; merch-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
@@ -210,9 +194,8 @@ class WorkerEntrypointBootstrapTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             final_status="partial-success",
-            failure_stage="publication",
-            failure_message="Flipbook service rejected the PDF.",
-            flipbook_url=None,
+            failure_stage="notification",
+            failure_message="Notification delivery failed.",
         )
 
         self.assertEqual(

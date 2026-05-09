@@ -240,17 +240,17 @@ class JobRepositoryTests(unittest.TestCase):
         item = self.repository.record_terminal_summary(
             job_id="job-6",
             final_status="partial-success",
-            failure_stage="publication",
-            failure_code="publication-failed",
-            failure_message="Flipbook service rejected the PDF.",
+            failure_stage="notification",
+            failure_code="notification-failed",
+            failure_message="Notification delivery failed.",
             dedupe_key="bucket:key:etag",
             recorded_at="2026-04-27T12:05:00Z",
         )
 
         self.assertEqual(item["status"], "partial-success")
         self.assertEqual(item["finalStatus"], "partial-success")
-        self.assertEqual(item["failureStage"], "publication")
-        self.assertEqual(item["failureCode"], "publication-failed")
+        self.assertEqual(item["failureStage"], "notification")
+        self.assertEqual(item["failureCode"], "notification-failed")
         self.assertEqual(item["dedupeKey"], "bucket:key:etag")
         self.assertEqual(item["completedAt"], "2026-04-27T12:05:00Z")
 

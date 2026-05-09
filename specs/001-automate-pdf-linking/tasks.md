@@ -24,7 +24,7 @@ description: "Implementation tasks for automated PDF link publishing"
 **Purpose**: Prepare the repository, runtime dependencies, and operator documentation for the worker-driven workflow.
 
 - [x] T001 Align worker and local runtime dependencies in /home/xzhang/project/FlippingPdfTool/requirements.txt and /home/xzhang/project/FlippingPdfTool/Dockerfile
-- [x] T002 Document AWS, Magento, flipbook, and notification configuration requirements in /home/xzhang/project/FlippingPdfTool/README.md and /home/xzhang/project/FlippingPdfTool/static/Requirements.txt
+- [x] T002 Document AWS, Magento, and notification configuration requirements in /home/xzhang/project/FlippingPdfTool/README.md and /home/xzhang/project/FlippingPdfTool/static/Requirements.txt
 - [x] T003 [P] Refresh local validation and routed-upload setup steps in /home/xzhang/project/FlippingPdfTool/specs/001-automate-pdf-linking/quickstart.md
 
 ---
@@ -68,30 +68,30 @@ description: "Implementation tasks for automated PDF link publishing"
 - [x] T018 [US1] Implement accepted-job worker execution and routed output handling in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
 - [x] T019 [US1] Persist page results, product matches, unmatched SKUs, and unresolved matches in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
 
-**Checkpoint**: User Story 1 should produce a linked PDF from a valid routed upload without requiring publication or notification.
+**Checkpoint**: User Story 1 should produce a linked PDF from a valid routed upload without requiring notification delivery.
 
 ---
 
-## Phase 4: User Story 2 - Publish the linked catalog and notify stakeholders (Priority: P2)
+## Phase 4: User Story 2 - Deliver the linked catalog and notify stakeholders (Priority: P2)
 
-**Goal**: Publish the linked PDF as a flipbook, record the returned publication URL, and send a success notification with the final outcome.
+**Goal**: Export the linked PDF to the routed output path and send a success notification with the final outcome.
 
-**Independent Test**: Complete a successful processing run and verify that the flipbook URL is persisted and included in the success notification payload.
+**Independent Test**: Complete a successful processing run and verify that the output PDF URL is included in the success notification payload.
 
 ### Tests for User Story 2
 
-- [x] T020 [P] [US2] Add publication and success-notification contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [x] T021 [P] [US2] Add publish-and-notify success integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
-- [x] T022 [P] [US2] Add flipbook-client and success-notification unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_publish_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py
+- [x] T020 [P] [US2] Add success-notification contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
+- [x] T021 [P] [US2] Add export-and-notify success integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
+- [x] T022 [P] [US2] Retired after automatic upload-step removal; notification coverage remains in /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py
 
 ### Implementation for User Story 2
 
-- [x] T023 [P] [US2] Implement the flipbook publication client in /home/xzhang/project/FlippingPdfTool/src/worker/publish_client.py
+- [x] T023 [P] [US2] Retired after automatic upload-step removal; the worker now hands off linked PDFs for manual follow-up.
 - [x] T024 [P] [US2] Implement success notification payload construction and delivery in /home/xzhang/project/FlippingPdfTool/src/worker/notify_client.py
-- [x] T025 [US2] Orchestrate publication, flipbook URL recording, and success notification dispatch in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
-- [x] T026 [US2] Persist publication and notification stage outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
+- [x] T025 [US2] Orchestrate successful export completion and success notification dispatch in /home/xzhang/project/FlippingPdfTool/src/worker/entrypoint.py
+- [x] T026 [US2] Persist notification stage outcomes in /home/xzhang/project/FlippingPdfTool/src/worker/job_repository.py
 
-**Checkpoint**: User Stories 1 and 2 should run end to end for a successful job and produce a notification containing the flipbook URL.
+**Checkpoint**: User Stories 1 and 2 should run end to end for a successful job and produce a notification containing the output PDF URL.
 
 ---
 
@@ -99,12 +99,12 @@ description: "Implementation tasks for automated PDF link publishing"
 
 **Goal**: Reject unsupported uploads early, preserve successful artifacts after downstream failures, and record terminal-state details that identify the failed stage without obscuring partial results.
 
-**Independent Test**: Trigger unsupported-prefix, invalid-PDF, publication-failure, and notification-failure scenarios and verify that job state, notifications, and retained artifacts reflect the precise stage that failed.
+**Independent Test**: Trigger unsupported-prefix, invalid-PDF, and notification-failure scenarios and verify that job state, notifications, and retained artifacts reflect the precise stage that failed.
 
 ### Tests for User Story 3
 
 - [x] T027 [P] [US3] Add rejected-routing and partial-failure contract coverage in /home/xzhang/project/FlippingPdfTool/tests/contract/test_workflow_contracts.py
-- [x] T028 [P] [US3] Add invalid-PDF, publication-failure, and notification-failure integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
+- [x] T028 [P] [US3] Add invalid-PDF and notification-failure integration coverage in /home/xzhang/project/FlippingPdfTool/tests/integration/test_worker_flow.py
 - [x] T029 [P] [US3] Add failure-notification and artifact-preservation unit coverage in /home/xzhang/project/FlippingPdfTool/tests/unit/test_notify_client.py and /home/xzhang/project/FlippingPdfTool/tests/unit/test_storage_client.py
 
 ### Implementation for User Story 3
@@ -136,13 +136,13 @@ description: "Implementation tasks for automated PDF link publishing"
 - **Phase 2: Foundational** depends on Phase 1 and blocks every user story.
 - **Phase 3: US1** depends on Phase 2 and is the MVP slice.
 - **Phase 4: US2** depends on US1 producing linked PDFs and persisted job-state updates.
-- **Phase 5: US3** depends on US1 and US2 because it verifies failures across routing, processing, publication, and notification.
+- **Phase 5: US3** depends on US1 and US2 because it verifies failures across routing, processing, and notification.
 - **Phase 6: Polish** depends on the in-scope user stories being complete.
 
 ### User Story Dependencies
 
 - **US1** is the first independently deliverable increment.
-- **US2** depends on US1 artifacts and adds publication plus stakeholder notification.
+- **US2** depends on US1 artifacts and adds stakeholder notification after successful export.
 - **US3** depends on the earlier stages existing so failure and partial-success paths can be exercised end to end.
 
 ### Within Each User Story
@@ -184,13 +184,13 @@ Task: "T016 Implement source-download, output-upload, and artifact-prefix S3 hel
 ## Parallel Example: User Story 2
 
 ```bash
-# Validate publication and notification success-path behavior together
-Task: "T020 Add publication and success-notification contract coverage in tests/contract/test_workflow_contracts.py"
+# Validate export and notification success-path behavior together
+Task: "T020 Add success-notification contract coverage in tests/contract/test_workflow_contracts.py"
 Task: "T021 Add publish-and-notify success integration coverage in tests/integration/test_worker_flow.py"
-Task: "T022 Add flipbook-client and success-notification unit coverage in tests/unit/test_publish_client.py and tests/unit/test_notify_client.py"
+Task: "T022 Retired after automatic upload-step removal; notification coverage remains in tests/unit/test_notify_client.py"
 
 # Build the independent US2 adapters together
-Task: "T023 Implement the flipbook publication client in src/worker/publish_client.py"
+Task: "T023 Retired after automatic upload-step removal; the worker now hands off linked PDFs for manual follow-up"
 Task: "T024 Implement success notification payload construction and delivery in src/worker/notify_client.py"
 ```
 
@@ -201,7 +201,7 @@ Task: "T024 Implement success notification payload construction and delivery in 
 ```bash
 # Exercise failure contracts and failure flows together
 Task: "T027 Add rejected-routing and partial-failure contract coverage in tests/contract/test_workflow_contracts.py"
-Task: "T028 Add invalid-PDF, publication-failure, and notification-failure integration coverage in tests/integration/test_worker_flow.py"
+Task: "T028 Add invalid-PDF and notification-failure integration coverage in tests/integration/test_worker_flow.py"
 Task: "T029 Add failure-notification and artifact-preservation unit coverage in tests/unit/test_notify_client.py and tests/unit/test_storage_client.py"
 
 # Build failure-handling components together

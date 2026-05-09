@@ -26,7 +26,7 @@
 
 ## Decision 3: Keep the existing PDF-linking pipeline as the domain core
 
-**Decision**: Reuse the current `src/main.py` page-by-page linking pipeline and place orchestration, storage, routing, publication, and notification behavior around it.
+**Decision**: Reuse the current `src/main.py` page-by-page linking pipeline and place orchestration, storage, routing, and notification behavior around it.
 
 **Rationale**: The current CLI already performs rendering, OCR/Textract analysis, SKU extraction, figure/description matching, and PDF link insertion. Reusing that core reduces regression risk and keeps local validation aligned with worker execution.
 
@@ -70,9 +70,9 @@
 - Treat missing `url_key` as a fatal job error: rejected because the spec explicitly says the job should continue.
 - Collapse missing `url_key` into the same metric as "no match": rejected because it hides a distinct catalog-data defect.
 
-## Decision 7: Define worker payloads as JSON schemas and keep publication/notification as downstream contracts
+## Decision 7: Define worker payloads as JSON schemas and keep notifications as downstream contracts
 
-**Decision**: Use JSON schemas for worker input and worker result payloads, and document the surrounding routing, Magento resolution, publication, and notification contracts in markdown.
+**Decision**: Use JSON schemas for worker input and worker result payloads, and document the surrounding routing, Magento resolution, and notification contracts in markdown.
 
 **Rationale**: The critical interface for this feature is the orchestration payload boundary rather than a public HTTP API. JSON schemas provide machine-validatable worker contracts, while markdown captures the surrounding stage-specific business semantics.
 
