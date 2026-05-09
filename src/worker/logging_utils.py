@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from typing import Any, Dict, Optional
 
 
 def get_workflow_logger(name: str = "src.worker.workflow") -> logging.Logger:
     logger = logging.getLogger(name)
     if not logger.handlers:
-        logger.addHandler(logging.NullHandler())
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
     return logger
 
 

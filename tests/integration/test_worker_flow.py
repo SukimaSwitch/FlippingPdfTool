@@ -67,7 +67,6 @@ class InMemoryJobRepository:
         self.started = None
         self.results = []
         self.page_results = None
-        self.publications = []
         self.notifications = []
         self.final_states = []
         self.rejections = []
@@ -87,11 +86,6 @@ class InMemoryJobRepository:
     def record_page_results(self, *, job_id: str, page_summaries):
         self.page_results = {"job_id": job_id, "page_summaries": page_summaries}
         return self.page_results
-
-    def record_publication_result(self, *, job_id: str, flipbook_url: str, recorded_at: str):
-        payload = {"job_id": job_id, "flipbook_url": flipbook_url, "recorded_at": recorded_at}
-        self.publications.append(payload)
-        return payload
 
     def record_notification_result(self, *, job_id: str, notification_payload, recorded_at: str):
         payload = {"job_id": job_id, "notification_payload": notification_payload, "recorded_at": recorded_at}
@@ -233,7 +227,7 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(repository.page_results["page_summaries"][0]["unmatched_skus"], ["66773"])
             self.assertEqual(repository.page_results["page_summaries"][0]["unresolved_matches"][0]["sku"], "88442")
 
-    def test_success_flow_publishes_flipbook_and_sends_notification(self) -> None:
+    def test_success_flow_records_completed_processing_result(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_pdf = temp_path / "input.pdf"
@@ -245,7 +239,6 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
 
             storage_client = InMemoryStorageClient(input_pdf)
             repository = InMemoryJobRepository()
-            publish_client = StubPublishClient()
             notify_client = StubNotifyClient()
             job = build_worker_job(
                 job_id="job-integration-002",
@@ -259,7 +252,6 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
                 job,
                 storage_client=storage_client,
                 catalog_client=StubCatalogClient(),
-                publish_client=publish_client,
                 notify_client=notify_client,
                 job_repository=repository,
                 workspace_dir=temp_path,
@@ -267,15 +259,18 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(result.status, "processed")
-            self.assertEqual(publish_client.requests[0]["pdfKey"], "output/currentcatalog/sample.pdf")
-            self.assertEqual(repository.publications[0]["flipbook_url"], "https://flipbook.example.com/books/12345")
             self.assertEqual(notify_client.payloads[0]["notificationType"], "success")
-            self.assertEqual(notify_client.payloads[0]["flipbookUrl"], "https://flipbook.example.com/books/12345")
+            self.assertEqual(notify_client.payloads[0]["finalStatus"], "success")
+            self.assertIsNone(notify_client.payloads[0]["failureStage"])
+            self.assertIsNone(notify_client.payloads[0]["failureMessage"])
+            self.assertNotIn("flipbookUrl", notify_client.payloads[0])
             self.assertEqual(
                 notify_client.payloads[0]["outputPdfUrl"],
                 "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
             )
-            self.assertEqual(repository.notifications[0]["notification_payload"]["finalStatus"], "completed")
+            self.assertEqual(repository.notifications[0]["notification_payload"]["finalStatus"], "success")
+            self.assertEqual(repository.final_states[0]["final_status"], "success")
+            self.assertIsNone(repository.final_states[0]["failure_code"])
 
     def test_rejected_prefix_fails_before_processing(self) -> None:
         repository = InMemoryJobRepository()
@@ -331,7 +326,7 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             self.assertEqual(notify_client.payloads[0]["finalStatus"], "failed")
             self.assertEqual(notify_client.payloads[0]["failureStage"], "processing")
 
-    def test_publication_failure_preserves_output_and_records_partial_success(self) -> None:
+    def test_uploaded_output_records_success_without_extra_upload_step(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_pdf = temp_path / "input.pdf"
@@ -356,7 +351,6 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
                 job,
                 storage_client=storage_client,
                 catalog_client=StubCatalogClient(),
-                publish_client=FailingPublishClient(),
                 notify_client=notify_client,
                 job_repository=repository,
                 workspace_dir=temp_path,
@@ -365,15 +359,17 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
 
             self.assertEqual(result.status, "processed")
             self.assertEqual(storage_client.uploads[0]["key"], "output/currentcatalog/sample.pdf")
-            self.assertEqual(repository.final_states[-1]["final_status"], "partial-success")
-            self.assertEqual(repository.final_states[-1]["failure_stage"], "publication")
-            self.assertEqual(notify_client.payloads[-1]["finalStatus"], "partial-success")
+            self.assertEqual(repository.final_states[-1]["final_status"], "success")
+            self.assertIsNone(repository.final_states[-1]["failure_stage"])
+            self.assertIsNone(repository.final_states[-1]["failure_code"])
+            self.assertEqual(notify_client.payloads[-1]["notificationType"], "success")
+            self.assertEqual(notify_client.payloads[-1]["finalStatus"], "success")
             self.assertEqual(
                 notify_client.payloads[-1]["outputPdfUrl"],
                 "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
             )
 
-    def test_missing_publication_configuration_records_expected_partial_success(self) -> None:
+    def test_missing_removed_upload_configuration_does_not_change_success_result(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_pdf = temp_path / "input.pdf"
@@ -406,17 +402,19 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
 
             self.assertEqual(result.status, "processed")
             self.assertEqual(storage_client.uploads[0]["key"], "output/currentcatalog/sample.pdf")
-            self.assertEqual(repository.final_states[-1]["final_status"], "partial-success")
-            self.assertEqual(repository.final_states[-1]["failure_stage"], "publication")
-            self.assertEqual(repository.final_states[-1]["failure_code"], "publication-not-configured")
-            self.assertEqual(notify_client.payloads[-1]["notificationType"], "failure")
-            self.assertEqual(notify_client.payloads[-1]["failureStage"], "publication")
+            self.assertEqual(repository.final_states[-1]["final_status"], "success")
+            self.assertIsNone(repository.final_states[-1]["failure_stage"])
+            self.assertIsNone(repository.final_states[-1]["failure_code"])
+            self.assertEqual(notify_client.payloads[-1]["notificationType"], "success")
+            self.assertEqual(notify_client.payloads[-1]["finalStatus"], "success")
+            self.assertIsNone(notify_client.payloads[-1]["failureStage"])
+            self.assertIsNone(notify_client.payloads[-1]["failureMessage"])
             self.assertEqual(
                 notify_client.payloads[-1]["outputPdfUrl"],
                 "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/sample.pdf",
             )
 
-    def test_notification_failure_preserves_flipbook_and_records_partial_success(self) -> None:
+    def test_notification_failure_after_export_records_partial_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_pdf = temp_path / "input.pdf"
@@ -440,7 +438,6 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
                 job,
                 storage_client=storage_client,
                 catalog_client=StubCatalogClient(),
-                publish_client=StubPublishClient(),
                 notify_client=FailingNotifyClient(),
                 job_repository=repository,
                 workspace_dir=temp_path,
@@ -448,25 +445,8 @@ class WorkerFlowIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(result.status, "processed")
-            self.assertEqual(repository.publications[-1]["flipbook_url"], "https://flipbook.example.com/books/12345")
             self.assertEqual(repository.final_states[-1]["final_status"], "partial-success")
             self.assertEqual(repository.final_states[-1]["failure_stage"], "notification")
-
-
-class StubPublishClient:
-    def __init__(self):
-        self.requests = []
-
-    def publish_pdf(self, *, job_id: str, site_prefix: str, pdf_bucket: str, pdf_key: str, filename: str):
-        request = {
-            "jobId": job_id,
-            "sitePrefix": site_prefix,
-            "pdfBucket": pdf_bucket,
-            "pdfKey": pdf_key,
-            "filename": filename,
-        }
-        self.requests.append(request)
-        return {"jobId": job_id, "publicationStatus": "published", "flipbookUrl": "https://flipbook.example.com/books/12345"}
 
 
 class StubNotifyClient:
@@ -480,7 +460,6 @@ class StubNotifyClient:
         recipient_group: str,
         site_prefix: str,
         filename: str,
-        flipbook_url: str,
         output_pdf_url: str = None,
     ):
         payload = {
@@ -489,8 +468,7 @@ class StubNotifyClient:
             "recipientGroup": recipient_group,
             "sitePrefix": site_prefix,
             "filename": filename,
-            "finalStatus": "completed",
-            "flipbookUrl": flipbook_url,
+            "finalStatus": "success",
             "outputPdfUrl": output_pdf_url,
             "failureStage": None,
             "failureMessage": None,
@@ -508,7 +486,6 @@ class StubNotifyClient:
         final_status: str,
         failure_stage: str,
         failure_message: str,
-        flipbook_url: str = None,
         output_pdf_url: str = None,
     ):
         payload = {
@@ -518,19 +495,12 @@ class StubNotifyClient:
             "sitePrefix": site_prefix,
             "filename": filename,
             "finalStatus": final_status,
-            "flipbookUrl": flipbook_url,
             "outputPdfUrl": output_pdf_url,
             "failureStage": failure_stage,
             "failureMessage": failure_message,
         }
         self.payloads.append(payload)
         return payload
-
-
-class FailingPublishClient:
-    def publish_pdf(self, **kwargs):
-        raise RuntimeError("Flipbook service rejected the PDF.")
-
 
 class FailingNotifyClient:
     def send_success_notification(self, **kwargs):

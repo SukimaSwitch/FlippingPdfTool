@@ -79,7 +79,6 @@ class JobRepository:
                 "artifactBucket": job.artifact_bucket,
                 "artifactPrefix": job.artifact_prefix,
                 "notificationGroup": job.notification_group,
-                "flipbookProfile": job.flipbook_profile,
                 "requestedBy": job.requested_by,
                 "correlationId": job.correlation_id,
                 "filename": job.filename,
@@ -180,23 +179,6 @@ class JobRepository:
     def record_page_results(self, *, job_id: str, page_summaries: Any) -> Dict[str, Any]:
         artifacts = PersistedPageArtifacts.from_page_summaries(list(page_summaries))
         return self._merge_job(job_id, artifacts.to_dict())
-
-    def record_publication_result(
-        self,
-        *,
-        job_id: str,
-        flipbook_url: str,
-        recorded_at: TimestampLike,
-    ) -> Dict[str, Any]:
-        return self._merge_job(
-            job_id,
-            {
-                "currentStage": "flipbook-publish",
-                "publicationStatus": "published",
-                "flipbookUrl": flipbook_url,
-                "updatedAt": _as_iso8601(recorded_at),
-            },
-        )
 
     def record_notification_result(
         self,

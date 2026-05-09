@@ -26,7 +26,6 @@ class NotificationClientTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
@@ -34,8 +33,8 @@ class NotificationClientTests(unittest.TestCase):
         self.assertEqual(payload["recipientGroup"], "catalog-ops@example.com")
         self.assertEqual(payload["sitePrefix"], "currentcatalog")
         self.assertEqual(payload["filename"], "catalog.pdf")
-        self.assertEqual(payload["finalStatus"], "completed")
-        self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(payload["finalStatus"], "success")
+        self.assertNotIn("flipbookUrl", payload)
         self.assertEqual(payload["outputPdfUrl"], "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf")
         self.assertIsNone(payload["failureStage"])
         self.assertIsNone(payload["failureMessage"])
@@ -49,14 +48,13 @@ class NotificationClientTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(len(sent_payloads), 1)
         self.assertEqual(sent_payloads[0], payload)
         self.assertEqual(payload["notificationType"], "success")
-        self.assertEqual(payload["finalStatus"], "completed")
+        self.assertEqual(payload["finalStatus"], "success")
 
     def test_build_failure_notification_payload_preserves_partial_success_fields(self) -> None:
         payload = build_failure_notification_payload(
@@ -65,17 +63,16 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             final_status="partial-success",
-            failure_stage="publication",
-            failure_message="Flipbook service rejected the PDF.",
-            flipbook_url="https://flipbook.example.com/books/12345",
+            failure_stage="notification",
+            failure_message="Notification delivery failed.",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
         self.assertEqual(payload["notificationType"], "failure")
         self.assertEqual(payload["finalStatus"], "partial-success")
-        self.assertEqual(payload["failureStage"], "publication")
-        self.assertEqual(payload["failureMessage"], "Flipbook service rejected the PDF.")
-        self.assertEqual(payload["flipbookUrl"], "https://flipbook.example.com/books/12345")
+        self.assertEqual(payload["failureStage"], "notification")
+        self.assertEqual(payload["failureMessage"], "Notification delivery failed.")
+        self.assertNotIn("flipbookUrl", payload)
         self.assertEqual(payload["outputPdfUrl"], "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf")
 
     def test_send_failure_notification_calls_sender_with_payload(self) -> None:
@@ -90,7 +87,6 @@ class NotificationClientTests(unittest.TestCase):
             final_status="partial-success",
             failure_stage="notification",
             failure_message="Email delivery failed.",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
@@ -105,7 +101,6 @@ class NotificationClientTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
 
@@ -113,7 +108,11 @@ class NotificationClientTests(unittest.TestCase):
             build_notification_subject(payload),
             "[currentcatalog] PDF processing success: catalog.pdf",
         )
-        self.assertIn('"jobId": "job-notify-003"', build_notification_message(payload))
+        message = build_notification_message(payload)
+        self.assertIn('"jobId": "job-notify-003"', message)
+        self.assertNotIn('"flipbookUrl"', message)
+        self.assertLess(message.index('"notificationType"'), message.index('"finalStatus"'))
+        self.assertLess(message.index('"finalStatus"'), message.index('"filename"'))
 
     def test_build_ses_sender_sends_email_to_recipient_group(self) -> None:
         payload = build_success_notification_payload(
@@ -121,7 +120,6 @@ class NotificationClientTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://cmg-catalog-book.s3.amazonaws.com/output/currentcatalog/catalog.pdf",
         )
         ses_client = FakeSesClient()
@@ -138,7 +136,6 @@ class NotificationClientTests(unittest.TestCase):
             recipient_group="catalog-ops@example.com; merch-ops@example.com",
             site_prefix="currentcatalog",
             filename="catalog.pdf",
-            flipbook_url="https://flipbook.example.com/books/12345",
             output_pdf_url="https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/catalog.pdf",
         )
         ses_client = FakeSesClient()
@@ -158,9 +155,8 @@ class NotificationClientTests(unittest.TestCase):
             site_prefix="currentcatalog",
             filename="catalog.pdf",
             final_status="partial-success",
-            failure_stage="publication",
-            failure_message="Flipbook service rejected the PDF.",
-            flipbook_url=None,
+            failure_stage="notification",
+            failure_message="Notification delivery failed.",
         )
         sns_client = FakeSnsClient()
         sender = build_sns_sender(

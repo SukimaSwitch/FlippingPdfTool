@@ -288,7 +288,6 @@ class WorkerJob:
     correlation_id: Optional[str] = None
     requested_by: Optional[str] = None
     notification_group: Optional[str] = None
-    flipbook_profile: Optional[str] = None
 
     @property
     def filename(self) -> str:
@@ -314,8 +313,6 @@ class WorkerJob:
             payload["requestedBy"] = self.requested_by
         if self.notification_group:
             payload["notificationGroup"] = self.notification_group
-        if self.flipbook_profile:
-            payload["flipbookProfile"] = self.flipbook_profile
         return payload
 
     @classmethod
@@ -344,7 +341,6 @@ class WorkerJob:
             correlation_id=payload.get("correlationId"),
             requested_by=payload.get("requestedBy"),
             notification_group=payload.get("notificationGroup"),
-            flipbook_profile=payload.get("flipbookProfile"),
         )
 
 

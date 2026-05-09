@@ -36,7 +36,6 @@ Configured prefix layout:
 Configured secret names:
 
 - `flipping-pdf/magento`
-- `flipping-pdf/flipbook`
 - `flipping-pdf/notifications`
 
 Secret values are intentionally not stored in the repository. Only secret names and integration ownership are tracked here.
@@ -74,7 +73,7 @@ The planned flow is:
 4. An ECS Fargate container runs the PDF-linking worker.
 5. The worker reads the source PDF, calls Textract, and writes the linked PDF back to S3.
 6. DynamoDB stores durable job state.
-7. The ECS worker can publish the finished PDF and notify stakeholders. If flipbook publication is not configured yet, the worker records that as an expected publication-stage partial success and can still send a failure notification.
+7. The ECS worker sends success or failure notifications after processing, and operators can use the exported PDF URL for any manual downstream step.
 
 ## Before You Start
 
@@ -139,7 +138,6 @@ Suggested attributes to store in each item:
 - `artifactPrefix`
 - `createdAt`
 - `updatedAt`
-- `flipbookUrl`
 - `errorMessage`
 
 ## Step 4: Create Secrets in Secrets Manager
@@ -149,13 +147,11 @@ Create secrets for external integrations so credentials are not stored in code o
 Suggested secrets:
 
 - `flipping-pdf/magento`
-- `flipping-pdf/flipbook`
 - `flipping-pdf/notifications`
 
 Examples of what they may contain:
 
 - Magento base URL plus either a preissued bearer token or a username/password pair that can exchange `POST /rest/V1/integration/admin/token` for an access token
-- Flipbook API URL and credentials
 - Notification configuration such as recipient group or service token
 
 If you are only testing the current local CLI, you do not need all of these yet. The current CLI mainly needs AWS credentials that can call Textract.
@@ -257,7 +253,6 @@ Required runtime variables for the worker include:
 Static environment variables or task-definition defaults should also include:
 
 - `MAGENTO_SECRET_NAME=flipping-pdf/magento`
-- `FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook`
 - `NOTIFICATION_MODE` such as `ses` or `sns`
 - `NOTIFICATION_SECRET_NAME=flipping-pdf/notifications`
 
@@ -280,11 +275,9 @@ The checked-in state machine template in `aws/templates/flipping-pdf-workflow.as
 
 The ECS worker itself already handles these downstream stages:
 
-1. Flipbook publication when `flipping-pdf/flipbook` contains a live URL and API key.
-2. Success notification after publication succeeds.
-3. Failure notification for rejected routing, processing failures, publication failures, notification failures, and the expected publication-not-configured case.
-
-If the flipbook secret is blank or incomplete, the workflow still produces the linked PDF, records `partial-success` with `failureStage=publication`, and can notify operators about that expected exception.
+1. PDF processing and linked-PDF upload to S3.
+2. Success notification when processing and export complete successfully.
+3. Failure notification for rejected routing, processing failures, and notification failures.
 
 Supported site prefixes in the current design are:
 
@@ -379,10 +372,10 @@ Then verify:
 4. The linked PDF appears under `output/currentcatalog/sample-catalog.pdf`.
 5. Logs appear in CloudWatch.
 
-If the flipbook secret is not live yet, also verify:
+Also verify:
 
-1. The `ProcessingJobs` item ends in `partial-success` with `failureStage=publication`.
-2. A failure notification is sent to the configured SES recipient or SNS topic describing the expected publication exception.
+1. The `ProcessingJobs` item ends in `success` after the exported PDF is written.
+2. A success notification is sent to the configured SES recipient or SNS topic with the exported PDF URL.
 
 ## Step 16: Validate Failure Handling
 
@@ -390,7 +383,7 @@ After the happy path works, test these failure cases:
 
 1. Upload a file to `input/unknown/sample.pdf` and confirm the job is rejected during routing.
 2. Upload an invalid PDF and confirm processing fails with a recorded error.
-3. Force a downstream error such as publication failure and confirm previously created artifacts remain available.
+3. Force a downstream error such as notification failure and confirm previously created artifacts remain available.
 
 ## Suggested Naming Summary
 
@@ -402,7 +395,7 @@ These names are reasonable starting points:
 - ECS cluster: `flipping-pdf-cluster`
 - Log group: `/aws/ecs/flipping-pdf-worker`
 - Log group: `/aws/states/flipping-pdf-workflow`
-- Secrets: `flipping-pdf/magento`, `flipping-pdf/flipbook`, `flipping-pdf/notifications`
+- Secrets: `flipping-pdf/magento`, `flipping-pdf/notifications`
 
 ## What Is Not Finished Yet in This Branch
 
@@ -410,7 +403,7 @@ The worker implementation and starter AWS workflow templates are present in the 
 
 - fully parameterized infrastructure-as-code for every manually provisioned AWS resource
 - automated placeholder substitution and deployment scripts for the checked-in AWS templates
-- final live secret values for flipbook publication and notification delivery
+- final live notification delivery configuration values
 
 That means this document can support deployment into the current manually provisioned AWS environment, but the repository is not yet a full infrastructure-from-source deployment package.
 
@@ -418,5 +411,5 @@ That means this document can support deployment into the current manually provis
 
 1. Push the validated worker image to ECR and register the task definition from `aws/templates/flipping-pdf-worker-task-definition.json`.
 2. Update the existing Step Functions state machine from `aws/templates/flipping-pdf-workflow.asl.json` and the EventBridge target from `aws/templates/flipping-pdf-eventbridge-rule.json`.
-3. Test one supported site prefix and confirm the linked PDF, DynamoDB job record, and expected publication-stage failure notification path work in AWS.
-4. Replace flipbook secret values with live publication credentials later, then validate the success-notification path separately from the expected publication exception.
+3. Test one supported site prefix and confirm the linked PDF, DynamoDB job record, and success notification path work in AWS.
+4. If operators still need an online publishing target later, handle that as a separate downstream manual or external workflow.

@@ -7,7 +7,6 @@ from .logging_utils import get_workflow_logger, log_page_progress, log_stage_pro
 from .models import PageResult, PersistedPageArtifacts, ProductMatch, SiteConfiguration, SourceDocument, UnmatchedSku, UnresolvedMatch, WorkerJob, WorkerResult
 from .notify_client import NotificationClient
 from .pipeline_runner import run_worker_pipeline
-from .publish_client import FlipbookPublishClient
 from .routing import build_worker_job, route_source_object
 from .storage_client import S3StorageClient
 
@@ -26,7 +25,6 @@ __all__ = [
 	"WorkerJob",
 	"WorkerResult",
 	"build_worker_job",
-	"FlipbookPublishClient",
 	"get_workflow_logger",
 	"log_page_progress",
 	"log_stage_progress",

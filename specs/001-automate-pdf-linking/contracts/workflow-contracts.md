@@ -212,42 +212,9 @@ GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][f
 - `failureStage` and `failureMessage` are required when `status = failed`.
 - `sitePrefix` must match the accepted routing decision.
 - `artifactPrefix` must point to persisted diagnostic artifacts.
-- Worker results cover only the PDF-processing slice. Publication and notification outcomes are handled by later workflow steps.
+- Worker results cover the worker-owned processing, export, and notification slices.
 
-## 6. Flipbook Publication Contract
-
-- Purpose: Defines the payload needed to publish the linked PDF.
-- Producer: Workflow orchestrator.
-- Consumer: Flipbook integration client.
-
-### Required request fields
-
-```json
-{
-  "jobId": "job-20260428-001",
-  "sitePrefix": "currentcatalog",
-  "pdfBucket": "cmg-catalog-book",
-  "pdfKey": "output/currentcatalog/spring-2026-catalog.pdf",
-  "filename": "spring-2026-catalog.pdf"
-}
-```
-
-### Required response fields
-
-```json
-{
-  "jobId": "job-20260428-001",
-  "publicationStatus": "published",
-  "flipbookUrl": "https://flipbook.example.com/books/12345"
-}
-```
-
-### Publication rules
-
-- Publication failures must include an error message that can be surfaced in job state and notifications.
-- A successful publication must return a non-empty `flipbookUrl`.
-
-## 7. Notification Contract
+## 6. Notification Contract
 
 - Purpose: Defines the payload for stakeholder outcome notifications.
 - Producer: Workflow orchestrator.
@@ -257,21 +224,21 @@ GET /rest/<store_code>/V1/products?searchCriteria[filterGroups][0][filters][0][f
 
 ```json
 {
-  "jobId": "job-20260428-001",
   "notificationType": "success",
-  "recipientGroup": "catalog-ops@example.com",
-  "sitePrefix": "currentcatalog",
+  "finalStatus": "success",
   "filename": "spring-2026-catalog.pdf",
-  "finalStatus": "completed",
-  "flipbookUrl": "https://flipbook.example.com/books/12345",
+  "sitePrefix": "currentcatalog",
+  "outputPdfUrl": "https://us-east-1.console.aws.amazon.com/s3/object/cmg-catalog-book?region=us-east-1&prefix=output/currentcatalog/spring-2026-catalog.pdf",
+  "jobId": "job-20260428-001",
   "failureStage": null,
-  "failureMessage": null
+  "failureMessage": null,
+  "recipientGroup": "catalog-ops@example.com"
 }
 ```
 
 ### Failure notification rules
 
-- Success notifications must include `filename`, `finalStatus`, and `flipbookUrl`.
+- Success notifications must include `filename`, `finalStatus`, and `outputPdfUrl`.
 - Failure notifications must include `filename`, `finalStatus`, `failureStage`, and `failureMessage`.
 - Failure notifications for rejected prefixes must report `failureStage = ingest-routing`.
 - Partial-success notifications must identify preserved artifacts that remain available even though a downstream stage failed.

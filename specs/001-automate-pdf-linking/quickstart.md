@@ -1,14 +1,14 @@
-# Quickstart: Automated PDF Link Publishing
+# Quickstart: Automated PDF Link Processing
 
 ## Goal
 
-Validate the planned workflow that automates PDF linking, site-aware routing, Magento URL resolution, flipbook publication, and stakeholder notification around the existing `src/main.py` pipeline.
+Validate the planned workflow that automates PDF linking, site-aware routing, Magento URL resolution, and stakeholder notification around the existing `src/main.py` pipeline while leaving any downstream online publishing outside the worker.
 
 ## Prerequisites
 
 - Python environment available for local tests.
 - AWS credentials with access to S3, Textract, Step Functions, ECS/Fargate, DynamoDB, Secrets Manager, and the selected notification mechanism.
-- Test credentials for Magento product search and the flipbook service.
+- Test credentials for Magento product search and the configured notification delivery path.
 - A representative catalog PDF, ideally including at least one exact Magento match, one partial-only Magento response, and one exact match missing `url_key`.
 - Docker or another container runtime for local worker validation.
 
@@ -19,9 +19,6 @@ Suggested local environment variables for routed validation:
 - `MAGENTO_SECRET_NAME`
 - `MAGENTO_SEARCH_BASE_URL` only when you need to override the API host from the secret; do not point it at the storefront domain
 - `MAGENTO_BEARER_TOKEN_SECRET_NAME` for a preissued bearer token, or `MAGENTO_SECRET_NAME` fields `username` and `password` so the worker can mint an admin token
-- `FLIPBOOK_SECRET_NAME`
-- `FLIPBOOK_API_BASE_URL`
-- `FLIPBOOK_API_SECRET_NAME`
 - `NOTIFICATION_MODE`
 - `NOTIFICATION_TARGET`
 - `NOTIFICATION_SECRET_NAME`
@@ -109,7 +106,6 @@ docker run --rm \
   -e DYNAMODB_TABLE_NAME=ProcessingJobs \
   -e MAGENTO_SECRET_NAME=flipping-pdf/magento \
   -v "$HOME/.aws:/home/appuser/.aws:ro" \
-  -e FLIPBOOK_SECRET_NAME=flipping-pdf/flipbook \
   -e NOTIFICATION_MODE=ses \
   -e NOTIFICATION_SECRET_NAME=flipping-pdf/notifications \
   flipping-pdf-worker
@@ -163,26 +159,26 @@ Expected result:
 - The worker writes the linked PDF to the same bucket under the routed `output/<site-prefix>/...` key.
 - The worker uploads the linked PDF and diagnostic artifacts and emits a structured processing result.
 
-Staging recommendation when flipbook credentials are still blank:
+Staging recommendation for the current manual downstream workflow:
 
-- Proceed with staged worker deployment for ingest-routing, PDF linking, S3 output, DynamoDB persistence, and artifact retention.
-- Treat flipbook publication as intentionally unavailable until the flipbook secret contains both a URL and API key.
-- Do not use staging success notifications as proof of production readiness until the flipbook secret and notification secret are updated with real live-environment values.
+- Proceed with staged worker deployment for ingest-routing, PDF linking, S3 output, DynamoDB persistence, artifact retention, and notifications.
+- Use the exported output PDF URL from the job record or notification for any downstream manual follow-up step.
+- Do not use staging success notifications as proof of production readiness until the notification secret and delivery configuration are updated with live-environment values.
 - A notification secret containing only `recipient` is not enough for SES delivery; add `source` or supply `NOTIFICATION_SOURCE`, or switch staging to SNS with a real topic ARN.
 - A Magento secret that omits both `bearer_token` and `username` plus `password` is not enough for live product lookup validation.
-- Rejected-routing and processing failures can now exercise real failure notifications in staging even before flipbook publication is enabled.
+- Rejected-routing and processing failures can exercise real failure notifications in staging.
 
-## 5. Exercise orchestration, publication, and notification
+## 5. Exercise orchestration and notification
 
 Trigger the workflow with a test upload or a representative routed payload.
 
 Expected result:
 
 - A `Processing Job` record is created.
-- Accepted jobs advance through routing, processing, publication, notification, and finalization.
-- Successful jobs record the flipbook URL and send a success notification containing the filename, final status, and flipbook URL.
+- Accepted jobs advance through routing, processing, output write, notification, and finalization.
+- Successful jobs send a success notification containing the filename, final status, and exported PDF URL.
 
-## 6. Validate failure and partial-success paths
+## 6. Validate failure and notification-partial-success paths
 
 Test at least these scenarios:
 
@@ -190,8 +186,7 @@ Test at least these scenarios:
 - Unsupported site prefix.
 - SKU with no exact Magento match.
 - Exact Magento match without `url_key`.
-- Flipbook publication failure after the linked PDF is created.
-- Notification delivery failure after publication succeeds.
+- Notification delivery failure after the linked PDF is exported.
 
 Expected result:
 
@@ -199,7 +194,7 @@ Expected result:
 - Unsupported prefixes fail during ingest-routing before worker invocation.
 - Non-exact or missing Magento matches do not fail the overall job.
 - Missing `url_key` cases are recorded as unresolved matches.
-- Publication and notification failures preserve already-created artifacts and record the failed stage.
+- Notification failures preserve already-created artifacts and record the failed stage.
 
 ## 7. Latest Local Validation Snapshot
 
@@ -213,10 +208,9 @@ Validated locally on 2026-04-28:
 Observed result:
 
 - The current suite passed locally before this planning refresh.
-- Coverage includes shared CLI and worker reuse, exact-SKU Magento matching, unresolved `url_key` handling, routed processing, publication, success notification, rejected routing, invalid-PDF handling, publication failure, notification failure, failure-notification payloads, and artifact-retention metadata persistence.
+- Coverage includes shared CLI and worker reuse, exact-SKU Magento matching, unresolved `url_key` handling, routed processing, success notification, rejected routing, invalid-PDF handling, notification failure, failure-notification payloads, and artifact-retention metadata persistence.
 
 Open validation gap:
 
 - Live AWS integration remains unverified in automation and still depends on real infrastructure, credentials, and third-party endpoints.
-- A blank flipbook secret blocks full US2 success-path validation even though the worker can still run staged US1 and partial-failure flows.
 - A notification secret containing only a recipient does not yet prove live SES or SNS delivery in staging.

@@ -13,21 +13,20 @@ def build_success_notification_payload(
     recipient_group: str,
     site_prefix: str,
     filename: str,
-    flipbook_url: str,
     output_pdf_url: Optional[str] = None,
 ) -> Dict[str, Optional[str]]:
-    return {
-        "jobId": job_id,
+    payload: Dict[str, Optional[str]] = {
         "notificationType": "success",
-        "recipientGroup": recipient_group,
-        "sitePrefix": site_prefix,
+        "finalStatus": "success",
         "filename": filename,
-        "finalStatus": "completed",
-        "flipbookUrl": flipbook_url,
+        "sitePrefix": site_prefix,
         "outputPdfUrl": output_pdf_url,
+        "jobId": job_id,
         "failureStage": None,
         "failureMessage": None,
+        "recipientGroup": recipient_group,
     }
+    return payload
 
 
 def build_failure_notification_payload(
@@ -39,7 +38,6 @@ def build_failure_notification_payload(
     final_status: str,
     failure_stage: str,
     failure_message: str,
-    flipbook_url: Optional[str],
     output_pdf_url: Optional[str] = None,
 ) -> Dict[str, Optional[str]]:
     return {
@@ -49,7 +47,6 @@ def build_failure_notification_payload(
         "sitePrefix": site_prefix,
         "filename": filename,
         "finalStatus": final_status,
-        "flipbookUrl": flipbook_url,
         "outputPdfUrl": output_pdf_url,
         "failureStage": failure_stage,
         "failureMessage": failure_message,
@@ -64,7 +61,7 @@ def build_notification_subject(payload: Dict[str, Optional[str]]) -> str:
 
 
 def build_notification_message(payload: Dict[str, Optional[str]]) -> str:
-    return json.dumps(payload, indent=2, sort_keys=True)
+    return json.dumps(payload, indent=2)
 
 
 def _parse_recipient_group(recipient_group: Optional[str]) -> list[str]:
@@ -116,7 +113,6 @@ class NotificationClient:
         recipient_group: str,
         site_prefix: str,
         filename: str,
-        flipbook_url: str,
         output_pdf_url: Optional[str] = None,
     ) -> Dict[str, Optional[str]]:
         payload = build_success_notification_payload(
@@ -124,7 +120,6 @@ class NotificationClient:
             recipient_group=recipient_group,
             site_prefix=site_prefix,
             filename=filename,
-            flipbook_url=flipbook_url,
             output_pdf_url=output_pdf_url,
         )
         if self._sender:
@@ -141,7 +136,6 @@ class NotificationClient:
         final_status: str,
         failure_stage: str,
         failure_message: str,
-        flipbook_url: Optional[str] = None,
         output_pdf_url: Optional[str] = None,
     ) -> Dict[str, Optional[str]]:
         payload = build_failure_notification_payload(
@@ -152,7 +146,6 @@ class NotificationClient:
             final_status=final_status,
             failure_stage=failure_stage,
             failure_message=failure_message,
-            flipbook_url=flipbook_url,
             output_pdf_url=output_pdf_url,
         )
         if self._sender:

@@ -48,15 +48,14 @@ The end-to-end workflow record for one uploaded PDF.
 | `job_id` | string | Yes | Stable identifier shared across orchestration, worker logs, persistence, and notifications. |
 | `source_pdf_ref` | Source PDF | Yes | The uploaded source document metadata. |
 | `site_configuration_ref` | Site Configuration | Yes | Derived routing configuration. |
-| `status` | enum | Yes | `received`, `routing_failed`, `routed`, `processing`, `processed`, `published`, `completed`, `partial_failure`, `failed`, `completed_with_errors`. |
-| `current_stage` | enum | Yes | `ingest_routing`, `download`, `processing`, `upload`, `publication`, `notification`, `finalize`. |
+| `status` | enum | Yes | `received`, `routing_failed`, `routed`, `processing`, `processed`, `completed`, `partial_failure`, `failed`, `completed_with_errors`. |
+| `current_stage` | enum | Yes | `ingest_routing`, `download`, `processing`, `upload`, `notification`, `finalize`. |
 | `started_at` | datetime | Yes | Job start timestamp. |
 | `completed_at` | datetime | No | Set when a terminal state is reached. |
 | `worker_run_id` | string | No | Run identifier used by the page-processing pipeline for artifact scoping. |
 | `output_bucket` | string | No | Physical output bucket. Expected value: `cmg-catalog-book`. |
 | `output_key` | string | No | Output PDF key such as `output/currentcatalog/spring-2026-catalog.pdf`. |
 | `artifact_prefix` | string | No | Persisted artifact namespace such as `artifacts/<job_id>/`. |
-| `flipbook_url` | string | No | Set when publication succeeds. |
 | `failure_stage` | string | No | Set when a stage fails. |
 | `failure_code` | string | No | Stable machine-readable error category. |
 | `failure_message` | string | No | Human-readable triage detail. |
@@ -74,11 +73,9 @@ The end-to-end workflow record for one uploaded PDF.
 | `received` | `routed` | Source file is valid and site configuration is derived successfully. |
 | `routed` | `processing` | Worker downloads the PDF and begins page processing. |
 | `processing` | `processed` | Linked PDF and page artifacts are produced successfully. |
-| `processed` | `published` | Flipbook publication returns a URL. |
-| `published` | `completed` | Success notification is sent and final state is recorded. |
+| `processed` | `completed` | Success notification is sent and final state is recorded. |
 | `processing` | `failed` | PDF processing fails before a linked PDF is produced. |
-| `processed` | `partial_failure` | Publication fails after the linked PDF exists. |
-| `published` | `partial_failure` | Notification fails after publication succeeds. |
+| `processed` | `partial_failure` | Notification fails after the linked PDF exists. |
 | `partial_failure` | `completed_with_errors` | Finalization preserves artifacts and records the downstream failure. |
 
 ## Page Result
@@ -157,16 +154,14 @@ The subset of Magento product data needed for URL resolution.
 
 ## Published Output
 
-Linked PDF artifact plus external publication result.
+Linked PDF artifact exported to S3.
 
 | Field | Type | Required | Notes |
 | ----- | ----- | -------- | ----- |
 | `job_id` | string | Yes | Parent job identifier. |
 | `linked_pdf_bucket` | string | Yes | Physical bucket for the linked PDF. |
 | `linked_pdf_key` | string | Yes | Output object key preserving the site prefix and original filename. |
-| `publication_status` | enum | Yes | `pending`, `published`, `failed`. |
-| `flipbook_url` | string | No | Set only when publication succeeds. |
-| `published_at` | datetime | No | Set when publication succeeds. |
+| `published_at` | datetime | No | Out of scope for the current worker runtime. |
 
 ## Notification Record
 
@@ -177,7 +172,7 @@ Represents an outbound stakeholder notification attempt.
 | `job_id` | string | Yes | Parent job identifier. |
 | `notification_type` | enum | Yes | `success`, `failure`, `partial_failure`. |
 | `recipient_group` | string | Yes | Configured destination group or address list. |
-| `payload_summary` | object | Yes | Includes filename, final status, flipbook URL when present, and failure details when applicable. |
+| `payload_summary` | object | Yes | Includes filename, final status, output PDF URL when present, and failure details when applicable. |
 | `delivery_status` | enum | Yes | `pending`, `sent`, `failed`. |
 | `attempted_at` | datetime | No | Timestamp of the latest delivery attempt. |
 | `delivery_error` | string | No | Delivery failure details when sending fails. |
